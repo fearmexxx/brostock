@@ -17,6 +17,12 @@ interface PortfolioItem {
   "Score"?: number
 }
 
+interface MarketScanData {
+    price: number;
+    action: string;
+    score: number;
+}
+
 // Helper to save to LocalStorage
 const savePortfolio = (data: PortfolioItem[]) => {
     if (typeof window !== 'undefined') {
@@ -43,7 +49,7 @@ export default function PortfolioPage() {
         if (typeof window === 'undefined') return
 
         const stored = localStorage.getItem('brostock_portfolio')
-        let localData: PortfolioItem[] = stored ? JSON.parse(stored) : []
+        const localData: PortfolioItem[] = stored ? JSON.parse(stored) : []
         
         if (localData.length === 0) {
             setPortfolio([])
@@ -52,7 +58,7 @@ export default function PortfolioPage() {
         }
 
         // 2. Optimized Fetch: Get Market Scan First (Bulk Price + Signals)
-        let marketScan: Record<string, any> = {}
+        let marketScan: Record<string, MarketScanData> = {}
         try {
             const res = await fetch(`${API_URL}/api/market/scan`)
             if (res.ok) {
@@ -115,7 +121,7 @@ export default function PortfolioPage() {
     }
 
     loadData()
-  }, []) // Run once on mount
+  }, [API_URL]) // Run once on mount
 
   const handleTrade = () => {
       setTradeMsg("")

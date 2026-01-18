@@ -23,7 +23,7 @@ export default async function Home({
       } else {
           stockData = await res.json()
       }
-  } catch (e) {
+  } catch {
       error = "Connection error to backend."
   }
 

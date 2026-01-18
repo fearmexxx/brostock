@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { AlertTriangle, TrendingUp, TrendingDown, CheckCircle } from "lucide-react"
+import { AlertTriangle, TrendingUp, TrendingDown } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 import Link from "next/link"
 
@@ -77,7 +77,7 @@ export default function SignalAlerts() {
         }
 
         checkSignals()
-    }, [])
+    }, [API_URL])
 
     if (loading || alerts.length === 0) return null
 

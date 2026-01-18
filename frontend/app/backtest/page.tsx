@@ -5,12 +5,31 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import { FlaskConical, Play, AlertCircle } from "lucide-react"
 
+interface Trade {
+    date: string;
+    type: string;
+    price: number;
+    shares: number;
+    value: number;
+    p_l: number;
+    p_l_pct: number;
+}
+
+interface BacktestResult {
+    total_return_pct: number;
+    win_rate: number;
+    max_drawdown_pct: number;
+    total_trades: number;
+    equity_curve: { date: string; value: number }[];
+    trades: Trade[];
+}
+
 export default function BacktestPage() {
   const [symbol, setSymbol] = useState("TCB")
   const [startDate, setStartDate] = useState("2021-01-01")
   const [endDate, setEndDate] = useState(new Date().toISOString().split('T')[0])
   const [loading, setLoading] = useState(false)
-  const [result, setResult] = useState<any>(null)
+  const [result, setResult] = useState<BacktestResult | null>(null)
   const [error, setError] = useState("")
 
   const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
@@ -39,8 +58,12 @@ export default function BacktestPage() {
           }
           
           setResult(data)
-      } catch (e: any) {
-          setError(e.message)
+      } catch (e: unknown) {
+          if (e instanceof Error) {
+            setError(e.message)
+          } else {
+            setError("An unknown error occurred")
+          }
       } finally {
           setLoading(false)
       }
@@ -54,7 +77,7 @@ export default function BacktestPage() {
             <FlaskConical className="text-purple-600" size={32} />
             <div>
                 <h1 className="text-3xl font-bold text-gray-900">Strategy Backtester</h1>
-                <p className="text-sm text-gray-500">Test the "BroStock v2.0" algo on historical data</p>
+                <p className="text-sm text-gray-500">Test the &quot;BroStock v2.0&quot; algo on historical data</p>
             </div>
         </div>
 
@@ -164,7 +187,7 @@ export default function BacktestPage() {
                                     tickFormatter={(val) => `${(val/1000000).toFixed(0)}M`}
                                 />
                                 <Tooltip 
-                                    formatter={(val: number) => [`${val.toLocaleString()} VND`, "Equity"]}
+                                    formatter={(val: any) => [`${val?.toLocaleString()} VND`, "Equity"]}
                                     labelFormatter={(label) => new Date(label).toLocaleDateString()}
                                 />
                                 <Line 
@@ -198,7 +221,7 @@ export default function BacktestPage() {
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {result.trades.map((t: any, idx: number) => (
+                                    {result.trades.map((t, idx) => (
                                         <tr key={idx} className="border-b hover:bg-gray-50">
                                             <td className="px-4 py-2">{t.date}</td>
                                             <td className="px-4 py-2">

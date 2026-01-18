@@ -8,10 +8,15 @@ import { Line, Bar, ComposedChart, XAxis, YAxis, Tooltip, ResponsiveContainer, L
 interface StockData {
   symbol: string
   current_price: number
-  summary: any
-  trend_metrics: any
-  intraday_data: any[]
-  historical_data: any[]
+  summary: Record<string, number>
+  trend_metrics: {
+      trend_strength?: number
+      is_uptrend?: boolean
+      annual_volatility?: number
+      signal_score?: number
+  }
+  intraday_data: Array<{ time: string; close: number; vwap: number; net_flow: number }>
+  historical_data: Array<{ time: string; close: number; MA5: number; MA20: number; volume: number }>
 }
 
 export function DashboardClient({ data }: { data: StockData | null }) {
@@ -106,7 +111,7 @@ export function DashboardClient({ data }: { data: StockData | null }) {
                     <div>
                         <p className="text-sm text-gray-500">Net Flow (1D)</p>
                         <p className={`text-2xl font-bold ${
-                            parseVND(stock.summary['Dòng tiền ròng (VND)']) >= 0 
+                            stock.summary['Dòng tiền ròng (VND)'] >= 0 
                             ? 'text-green-600' : 'text-red-600'
                         }`}>
                           {stock.summary['Dòng tiền ròng (VND)']}
@@ -146,7 +151,7 @@ export function DashboardClient({ data }: { data: StockData | null }) {
                                     <YAxis yAxisId="right" orientation="right" />
                                     <Tooltip 
                                         labelFormatter={(label) => new Date(label).toLocaleTimeString()}
-                                        formatter={(value: number, name: string) => [
+                                        formatter={(value: any, name: any) => [
                                             name === 'net_flow' ? value.toLocaleString() : `${value.toLocaleString()} ₫`, 
                                             name === 'close' ? 'Price' : name === 'vwap' ? 'VWAP' : 'Net Flow'
                                         ]}
@@ -167,7 +172,7 @@ export function DashboardClient({ data }: { data: StockData | null }) {
                                     <YAxis yAxisId="right" orientation="right" />
                                     <Tooltip 
                                         labelFormatter={(label) => new Date(label).toLocaleDateString()}
-                                        formatter={(value: number) => value.toLocaleString()}
+                                        formatter={(value: any) => value.toLocaleString()}
                                     />
                                     <Legend />
                                     <Line yAxisId="left" type="monotone" dataKey="close" stroke="#2563eb" strokeWidth={2} dot={false} name="Price" />

@@ -1,29 +1,46 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, useCallback } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { ArrowUp, ArrowDown, TrendingUp, BarChart3, ListOrdered } from "lucide-react"
+import { ArrowUp, ArrowDown, TrendingUp, BarChart3 } from "lucide-react"
 import Link from "next/link"
+
+interface StockInfo {
+  symbol: string;
+  price: number;
+  change: number;
+  pct_change: number;
+  volume: number;
+}
+
+interface Signal {
+  symbol: string;
+  signal_label: string;
+  trend_strength: number;
+  price: number;
+  change: number;
+  pct_change: number;
+}
 
 interface MarketData {
 
-  indices: Record<string, any>
+  indices: Record<string, { value: number; change: number; pct_change: number }>;
 
   top10: {
 
-    gainers: any[]
+    gainers: StockInfo[]
 
-    losers: any[]
+    losers: StockInfo[]
 
-    volume: any[]
+    volume: StockInfo[]
 
   }
 
   signals: {
 
-    bullish: any[]
+    bullish: Signal[]
 
-    bearish: any[]
+    bearish: Signal[]
 
   }
 
@@ -41,11 +58,9 @@ export default function MarketPage() {
 
   const [view, setView] = useState<"rankings" | "signals">("rankings")
 
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
-
-  const fetchMarketData = async () => {
-
-    const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+  const fetchMarketData = useCallback(async () => {
 
         try {
 
@@ -65,7 +80,7 @@ export default function MarketPage() {
 
     }
 
-  }
+  }, [API_URL])
 
 
 
@@ -95,11 +110,11 @@ export default function MarketPage() {
 
     return () => clearInterval(interval)
 
-  }, [])
+  }, [fetchMarketData])
 
 
 
-  const getSortedSignals = (signals: any[], order: 'asc' | 'desc') => {
+  const getSortedSignals = (signals: Signal[] | undefined, order: 'asc' | 'desc') => {
     if (!signals) return [];
     return [...signals].sort((a, b) => {
       return order === 'desc' ? b.trend_strength - a.trend_strength : a.trend_strength - b.trend_strength;
@@ -156,7 +171,7 @@ export default function MarketPage() {
 
                 {data?.last_updated && (
 
-                    <p className="text-[10px] text-gray-400">Last updated: {new Date(data.last_updated).toLocaleTimeString()}</p>
+                    <p className="text-[10px] text-gray-400">Last updated: {new Date(data.last_updated as string).toLocaleTimeString()}</p>
 
                 )}
 
@@ -170,7 +185,7 @@ export default function MarketPage() {
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
 
-            {data && data.indices && Object.entries(data.indices).map(([name, info]: [string, any]) => (
+            {data && data.indices && Object.entries(data.indices).map(([name, info]: [string, { value: number; change: number; pct_change: number }]) => (
 
                 <Card key={name} className="border-none shadow-sm">
 
