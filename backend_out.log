@@ -1,0 +1,12 @@
+👋 Chào mừng bạn đến với Vnstock! Tài liệu: https://vnstocks.com/onboard | Cộng đồng: https://facebook.com/groups/vnstock.official
+Using Local SQLite Database.
+INFO:     127.0.0.1:29955 - "GET /api/portfolio/demo_user HTTP/1.1" 200 OK
+INFO:     127.0.0.1:65116 - "OPTIONS /api/trade HTTP/1.1" 200 OK
+INFO:     127.0.0.1:65116 - "POST /api/trade HTTP/1.1" 200 OK
+INFO:     127.0.0.1:65116 - "GET /api/portfolio/demo_user HTTP/1.1" 200 OK
+INFO:     127.0.0.1:65116 - "GET /api/stock/TCB HTTP/1.1" 500 Internal Server Error
+INFO:     127.0.0.1:45850 - "POST /api/trade HTTP/1.1" 200 OK
+INFO:     127.0.0.1:45850 - "GET /api/portfolio/demo_user HTTP/1.1" 200 OK
+INFO:     127.0.0.1:45850 - "GET /api/stock/TCB HTTP/1.1" 500 Internal Server Error
+INFO:     127.0.0.1:4114 - "GET /api/stock/VCK HTTP/1.1" 500 Internal Server Error
+INFO:     127.0.0.1:18982 - "GET /api/stock/TCB HTTP/1.1" 500 Internal Server Error

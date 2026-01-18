@@ -1,0 +1,13 @@
+streamlit
+matplotlib
+seaborn
+pandas
+numpy
+vnstock
+sqlalchemy
+tqdm
+plotly
+psycopg2-binary
+supabase
+fastapi
+uvicorn

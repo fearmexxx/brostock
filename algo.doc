@@ -1,0 +1,58 @@
+# BroStock Algorithm Documentation
+
+**Goal:** To build the best dashboard with the best algorithm for real serious investors.
+
+## Overview
+The current algorithm evaluates stock trends using a composite "Signal Score" derived from Trend, Momentum, and Volume Flow. It assigns a score from **-10 (Strong Bearish)** to **+10 (Strong Bullish)**.
+
+## 1. Core Metrics
+
+### Trend Strength (`trend_strength`)
+Measures how far the current price deviates from the 50-day Simple Moving Average (SMA).
+- **Formula:** `((Current Price - SMA_50) / SMA_50) * 100`
+- **Interpretation:** Positive values indicate the price is above the medium-term trend line (Bullish). Negative values indicate it's below (Bearish).
+
+### Volume Surge (`volume_surge`)
+Measures abnormal trading activity compared to the last 7 days.
+- **Formula:** `Current Volume / Average Volume (7 days)`
+- **Interpretation:** > 1.0 means higher than average activity. > 1.2 is considered a significant surge.
+
+## 2. Signal Score Logic (Scale: -10 to +10)
+
+The score starts at 0 and adds/subtracts points based on the following criteria:
+
+### A. Trend (Max 4 Points)
+- **+2 Points:** Price > SMA_50 (Uptrend Confirmation)
+- **+2 Points:** Trend Strength > 5% (Strong Uptrend)
+- **-2 Points:** Price < SMA_50 (Downtrend Confirmation)
+- **-2 Points:** Trend Strength < -5% (Strong Downtrend)
+
+### B. Momentum (Max 3 Points)
+- **+2 Points:** Price > SMA_20 (Short-term Momentum)
+- **-2 Points:** Price < SMA_20 (Short-term Weakness)
+- **+1 Point:** 7-Day Return > 2% (Short-term Gain)
+- **-1 Point:** 7-Day Return < -2% (Short-term Loss)
+
+### C. Volume Flow (Max 3 Points)
+- **+2 Points:** Volume Surge > 1.2 (Significant Buying Pressure)
+- **-1 Point:** Volume Surge < 0.8 (Low Liquidity/Interest)
+- **+1 Point:** Current Volume > 20-Day Average Volume (Sustained Interest)
+
+### Final Score Clamping
+The final calculated score is clamped between -10 and +10.
+
+## 3. Signal Labels
+Based on the final `signal_score`, stocks are classified as:
+
+| Score Range | Label |
+| :--- | :--- |
+| **+7 to +10** | **Strong Bullish** |
+| **+3 to +6** | **Bullish** |
+| **-2 to +2** | **Neutral** |
+| **-6 to -3** | **Bearish** |
+| **-10 to -7** | **Strong Bearish** |
+
+## Future Improvements (Ideas)
+- Integrate RSI (Relative Strength Index) to detect Overbought/Oversold conditions.
+- Add MACD Crossover detection for more reliable entry/exit signals.
+- Include Foreign Investor Net Flow as a weighted factor.
