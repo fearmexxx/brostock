@@ -216,9 +216,13 @@ async def update_market_data(force=False):
                 save_market_cache("top10", top10_data)
                 
                 # Top 15 Signals (Bullish/Bearish)
+                # Filter first to exclude Neutral/Opposite signals
+                bullish_df = df_all[df_all['signal_score'] >= 3]
+                bearish_df = df_all[df_all['signal_score'] <= -3]
+                
                 # Primary sort: Signal Score, Secondary: Trend Strength
-                bullish = df_all.sort_values(["signal_score", "trend_strength"], ascending=[False, False]).head(15)
-                bearish = df_all.sort_values(["signal_score", "trend_strength"], ascending=[True, True]).head(15)
+                bullish = bullish_df.sort_values(["signal_score", "trend_strength"], ascending=[False, False]).head(15)
+                bearish = bearish_df.sort_values(["signal_score", "trend_strength"], ascending=[True, True]).head(15)
                 
                 signal_data = {
                     "bullish": convert_numpy(bullish.to_dict('records')),
