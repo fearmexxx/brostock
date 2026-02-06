@@ -62,50 +62,59 @@ def format_index(val):
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
-        "🚀 *Welcome to BroStock Bot!* \n\n"
-        "I provide real-time Vietnamese market signals and automated reports.\n\n"
-        "*Commands:*\n"
-        "🔹 `/price [symbol]` - Quick stock analysis\n"
-        "🔹 `/top` - Market rankings (Gainers/Losers)\n"
-        "🔹 `/signals` - Bullish/Bearish alerts\n"
-        "🔹 `/subscribe` - Receive daily EOD reports\n"
-        "🔹 `/unsubscribe` - Stop receiving reports\n"
-        "🔹 `/help` - Show this message",
+        "🚀 *Chào mừng bạn đến với BroStock Bot!* \n\n"
+        "Tôi cung cấp tín hiệu thị trường chứng khoán Việt Nam thời gian thực và báo cáo tự động.\n\n"
+        "*Danh sách lệnh:*\n"
+        "🔹 `/price [mã]` - Phân tích nhanh cổ phiếu\n"
+        "🔹 `/top` - Bảng xếp hạng thị trường (Tăng/Giảm)\n"
+        "🔹 `/signals` - Tín hiệu mua/bán chọn lọc\n"
+        "🔹 `/subscribe` - Đăng ký nhận báo cáo cuối ngày (16:00)\n"
+        "🔹 `/unsubscribe` - Hủy đăng ký nhận báo cáo\n"
+        "🔹 `/help` - Hiển thị hướng dẫn này",
         parse_mode='Markdown'
     )
 
 async def subscribe(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     if add_subscriber(user_id):
-        await update.message.reply_text("✅ *Subscribed!* You will receive daily market reports at 4:00 PM ICT.", parse_mode='Markdown')
+        await update.message.reply_text("✅ *Đã đăng ký!* Bạn sẽ nhận được báo cáo thị trường vào lúc 16:00 mỗi ngày.", parse_mode='Markdown')
     else:
-        await update.message.reply_text("ℹ️ You are already subscribed.")
+        await update.message.reply_text("ℹ️ Bạn đã đăng ký nhận tin rồi.")
 
 async def unsubscribe(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     if remove_subscriber(user_id):
-        await update.message.reply_text("👋 *Unsubscribed.* You will no longer receive daily reports.", parse_mode='Markdown')
+        await update.message.reply_text("👋 *Đã hủy đăng ký.* Bạn sẽ không còn nhận được báo cáo hàng ngày.", parse_mode='Markdown')
     else:
-        await update.message.reply_text("ℹ️ You are not subscribed.")
+        await update.message.reply_text("ℹ️ Bạn chưa đăng ký nhận tin.")
 
 async def price_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not context.args:
-        await update.message.reply_text("Usage: `/price [symbol]` (e.g., `/price FPT`)", parse_mode='Markdown')
+        await update.message.reply_text("Cách dùng: `/price [mã]` (ví dụ: `/price FPT`)", parse_mode='Markdown')
         return
 
     symbol = context.args[0].upper()
-    await update.message.reply_text(f"🔍 Analyzing {symbol}...")
+    await update.message.reply_text(f"🔍 Đang phân tích {symbol}...")
 
     try:
         # 1. Historical Data Analysis
         df = get_stock_history_data(symbol)
         if df.empty:
-            await update.message.reply_text(f"❌ Data not found for {symbol}.")
+            await update.message.reply_text(f"❌ Không tìm thấy dữ liệu cho mã {symbol}.")
             return
 
         metrics = calculate_trend_metrics(df)
         score = metrics.get('signal_score', 0)
         label = metrics.get('signal_label', 'Neutral')
+        # Translate labels
+        label_vn = {
+            'Strong Bullish': 'Tăng mạnh',
+            'Bullish': 'Tăng',
+            'Neutral': 'Trung lập',
+            'Bearish': 'Giảm',
+            'Strong Bearish': 'Giảm mạnh'
+        }.get(label, label)
+
         price = metrics.get('current_price_daily', 0)
         
         # 2. Intraday Flow Analysis
@@ -130,54 +139,58 @@ async def price_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         # Crossover alerts
         cross_text = ""
-        if metrics.get('golden_cross'): cross_text = "🌟 *GOLDEN CROSS (EMA5 > SMA20)*\n"
-        if metrics.get('death_cross'): cross_text = "💀 *DEATH CROSS (EMA5 < SMA20)*\n"
+        if metrics.get('golden_cross'): cross_text = "🌟 *GIAO CẮT VÀNG (EMA5 > SMA20)*\n"
+        if metrics.get('death_cross'): cross_text = "💀 *GIAO CẮT TỬ THẦN (EMA5 < SMA20)*\n"
+
+        # Prediction label translation
+        pred_label = metrics.get('prediction_label', 'SIDEWAYS')
+        pred_vn = {'UPWARD': 'TĂNG', 'DOWNWARD': 'GIẢM', 'SIDEWAYS': 'ĐI NGANG'}.get(pred_label, pred_label)
 
         text = (
-            f"{emoji} *{symbol} - {label}*\n"
+            f"{emoji} *{symbol} - {label_vn}*\n"
             f"━━━━━━━━━━━━━━━━━━\n"
-            f"💰 *Price:* {format_number(price)} VND\n"
-            f"📊 *Score:* {score}/10\n"
-            f"📈 *Trend:* {metrics.get('trend_strength', 0):+.2f}%\n"
-            f"🔥 *RSI:* {metrics.get('rsi', 0):.2f}\n"
+            f"💰 *Giá:* {format_number(price)} VND\n"
+            f"📊 *Điểm tín hiệu:* {score}/10\n"
+            f"📈 *Sức mạnh xu hướng:* {metrics.get('trend_strength', 0):+.2f}%\n"
+            f"🔥 *Chỉ số RSI:* {metrics.get('rsi', 0):.2f}\n"
             f"━━━━━━━━━━━━━━━━━━\n"
-            f"📏 *MA Status:*\n"
+            f"📏 *Trạng thái MA:*\n"
             f"  • EMA 5: {format_number(metrics.get('ema_5'))}\n"
             f"  • SMA 20: {format_number(metrics.get('sma_20'))}\n"
             f"  • SMA 50: {format_number(metrics.get('sma_50'))}\n"
             f"{cross_text}"
             f"━━━━━━━━━━━━━━━━━━\n"
-            f"🌊 *Intraday Flow:*\n"
-            f"  • Buy Vol: {format_number(buy_vol)}\n"
-            f"  • Sell Vol: {format_number(sell_vol)}\n"
-            f"  • Net Flow: {format_number(net_flow)} VND\n"
+            f"🌊 *Dòng tiền trong ngày:*\n"
+            f"  • Khối lượng Mua: {format_number(buy_vol)}\n"
+            f"  • Khối lượng Bán: {format_number(sell_vol)}\n"
+            f"  • Dòng tiền ròng: {format_number(net_flow)} VND\n"
             f"━━━━━━━━━━━━━━━━━━\n"
-            f"🔮 *5-Day Prediction:*\n"
-            f"  • Outlook: *{metrics.get('prediction_label')}*\n"
-            f"  • Target: {metrics.get('prediction_5d_pct', 0):+.2f}%\n\n"
-            f"_{'Buy' if score >= 5 else 'Sell' if score <= -3 else 'Hold'} recommendation based on BroStock v2.0 algorithm._"
+            f"🔮 *Dự báo 5 ngày tới:*\n"
+            f"  • Xu hướng: *{pred_vn}*\n"
+            f"  • Mục tiêu: {metrics.get('prediction_5d_pct', 0):+.2f}%\n\n"
+            f"_{'Nên Mua' if score >= 5 else 'Nên Bán' if score <= -3 else 'Theo dõi'} dựa trên thuật toán BroStock v2.0._"
         )
         await update.message.reply_text(text, parse_mode='Markdown')
     except Exception as e:
         import traceback
         logging.error(traceback.format_exc())
-        await update.message.reply_text(f"❌ Error: {str(e)}")
+        await update.message.reply_text(f"❌ Lỗi: {str(e)}")
 
 async def top_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     top10, _ = get_market_cache("top10")
     if not top10:
-        await update.message.reply_text("Market rankings not available. Try again later.")
+        await update.message.reply_text("Bảng xếp hạng thị trường hiện chưa có. Vui lòng thử lại sau.")
         return
 
     gainers = top10.get('gainers', [])[:5]
     losers = top10.get('losers', [])[:5]
 
-    text = "🔥 *Market Rankings*\n\n"
-    text += "*Top Gainers:*\n"
+    text = "🔥 *Xếp Hạng Thị Trường*\n\n"
+    text += "*Top Tăng Giá:*\n"
     for s in gainers:
         text += f"🟢 {s['symbol']}: {format_number(s['price'])} ({s['pct_change']:+.2f}%)\n"
     
-    text += "\n*Top Losers:*\n"
+    text += "\n*Top Giảm Giá:*\n"
     for s in losers:
         text += f"🔴 {s['symbol']}: {format_number(s['price'])} ({s['pct_change']:+.2f}%)\n"
 
@@ -186,20 +199,20 @@ async def top_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def signals_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     signals, _ = get_market_cache("signals")
     if not signals:
-        await update.message.reply_text("Signals not available. Try again later.")
+        await update.message.reply_text("Tín hiệu hiện chưa có. Vui lòng thử lại sau.")
         return
 
     bullish = signals.get('bullish', [])[:10]
     bearish = signals.get('bearish', [])[:10]
 
-    text = "🎯 *BroStock High-Conviction Signals*\n\n"
-    text += "🚀 *BULLISH (Buy/Watch):*\n"
+    text = "🎯 *Tín Hiệu BroStock Chọn Lọc*\n\n"
+    text += "🚀 *TÍCH CỰC (Mua/Theo dõi):*\n"
     for s in bullish:
-        text += f"✅ {s['symbol']} - Score: {s['signal_score']} ({s['pct_change']:+.2f}%)\n"
+        text += f"✅ {s['symbol']} - Điểm: {s['signal_score']} ({s['pct_change']:+.2f}%)\n"
     
-    text += "\n💀 *BEARISH (Sell/Avoid):*\n"
+    text += "\n💀 *TIÊU CỰC (Bán/Tránh):*\n"
     for s in bearish:
-        text += f"⚠️ {s['symbol']} - Score: {s['signal_score']} ({s['pct_change']:+.2f}%)\n"
+        text += f"⚠️ {s['symbol']} - Điểm: {s['signal_score']} ({s['pct_change']:+.2f}%)\n"
 
     await update.message.reply_text(text, parse_mode='Markdown')
 
@@ -209,24 +222,24 @@ async def daily_report(context: ContextTypes.DEFAULT_TYPE):
     
     if not indices: return
 
-    text = "📢 *BroStock EOD Market Report*\n"
+    text = "📢 *Báo Cáo Thị Trường BroStock*\n"
     text += f"📅 {datetime.now().strftime('%d/%m/%Y')}\n━━━━━━━━━━━━━━━━━━\n\n"
     
     for idx, data in indices.items():
         emoji = "🟢" if data['change'] >= 0 else "🔴"
         text += f"{emoji} *{idx}:* {format_index(data['value'])} ({data['pct_change']:+.2f}%)\n"
     
-    text += "\n💎 *Top Bullish Pick of the Day:* \n"
+    text += "\n💎 *Cổ phiếu tích cực nhất trong ngày:* \n"
     if signals and signals.get('bullish'):
         top = signals['bullish'][0]
-        text += f"👉 *{top['symbol']}* (Score: {top['signal_score']})\n"
+        text += f"👉 *{top['symbol']}* (Điểm: {top['signal_score']})\n"
 
     subs = get_subscribers()
     for chat_id in subs:
         try:
             await context.bot.send_message(chat_id=chat_id, text=text, parse_mode='Markdown')
         except Exception as e:
-            print(f"Failed to send report to {chat_id}: {e}")
+            print(f"Không thể gửi báo cáo cho {chat_id}: {e}")
 
 if __name__ == '__main__':
     if not TOKEN:
