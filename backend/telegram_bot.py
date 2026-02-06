@@ -1,6 +1,7 @@
 import os
 import logging
 import asyncio
+import time
 from datetime import datetime, time as dt_time
 from telegram import Update
 from telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler
@@ -18,6 +19,23 @@ from database import get_market_cache
 load_dotenv()
 TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 SUBSCRIBERS_FILE = "subscribers.txt"
+
+# Rate Limiting: 10 requests / 60 seconds
+user_requests = {}
+
+def is_rate_limited(user_id):
+    now = time.time()
+    if user_id not in user_requests:
+        user_requests[user_id] = []
+    
+    # Clean old requests
+    user_requests[user_id] = [t for t in user_requests[user_id] if now - t < 60]
+    
+    if len(user_requests[user_id]) >= 10:
+        return True
+    
+    user_requests[user_id].append(now)
+    return False
 
 # Enable logging
 logging.basicConfig(
@@ -89,6 +107,11 @@ async def unsubscribe(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("ℹ️ Bạn chưa đăng ký nhận tin.")
 
 async def price_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    if is_rate_limited(user_id):
+        await update.message.reply_text("⚠️ *Bạn đã đạt giới hạn yêu cầu!* (Tối đa 10 yêu cầu/phút). Vui lòng thử lại sau.", parse_mode='Markdown')
+        return
+
     if not context.args:
         await update.message.reply_text("Cách dùng: `/price [mã]` (ví dụ: `/price FPT`)", parse_mode='Markdown')
         return
@@ -118,7 +141,7 @@ async def price_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         price = metrics.get('current_price_daily', 0)
         
         # 2. Intraday Flow Analysis
-        from stock_analyzer import get_intraday_data, preprocess_data
+        from stock_analyzer import get_intraday_data, preprocess_data, generate_intraday_chart_image
         intra_df = get_intraday_data(symbol)
         buy_vol = 0
         sell_vol = 0
@@ -151,26 +174,38 @@ async def price_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"━━━━━━━━━━━━━━━━━━\n"
             f"💰 *Giá:* {format_number(price)} VND\n"
             f"📊 *Điểm tín hiệu:* {score}/10\n"
-            f"📈 *Sức mạnh xu hướng:* {metrics.get('trend_strength', 0):+.2f}%\n"
+            f"📈 *Xu hướng:* {metrics.get('trend_strength', 0):+.2f}%\n"
             f"🔥 *Chỉ số RSI:* {metrics.get('rsi', 0):.2f}\n"
             f"━━━━━━━━━━━━━━━━━━\n"
-            f"📏 *Trạng thái MA:*\n"
+            f"📏 *Chỉ số MA:*\n"
             f"  • EMA 5: {format_number(metrics.get('ema_5'))}\n"
             f"  • SMA 20: {format_number(metrics.get('sma_20'))}\n"
             f"  • SMA 50: {format_number(metrics.get('sma_50'))}\n"
             f"{cross_text}"
             f"━━━━━━━━━━━━━━━━━━\n"
             f"🌊 *Dòng tiền trong ngày:*\n"
-            f"  • Khối lượng Mua: {format_number(buy_vol)}\n"
-            f"  • Khối lượng Bán: {format_number(sell_vol)}\n"
-            f"  • Dòng tiền ròng: {format_number(net_flow)} VND\n"
+            f"  • Mua: {format_number(buy_vol)}\n"
+            f"  • Bán: {format_number(sell_vol)}\n"
+            f"  • Ròng: {format_number(net_flow)} VND\n"
             f"━━━━━━━━━━━━━━━━━━\n"
             f"🔮 *Dự báo 5 ngày tới:*\n"
             f"  • Xu hướng: *{pred_vn}*\n"
             f"  • Mục tiêu: {metrics.get('prediction_5d_pct', 0):+.2f}%\n\n"
             f"_{'Nên Mua' if score >= 5 else 'Nên Bán' if score <= -3 else 'Theo dõi'} dựa trên thuật toán BroStock v2.0._"
         )
+        
+        # Send text info
         await update.message.reply_text(text, parse_mode='Markdown')
+        
+        # Send Intraday Chart
+        chart_buf = generate_intraday_chart_image(symbol)
+        if chart_buf:
+            await update.message.reply_photo(photo=chart_buf, caption=f"📊 Biểu đồ trong ngày {symbol}")
+            
+    except Exception as e:
+        import traceback
+        logging.error(traceback.format_exc())
+        await update.message.reply_text(f"❌ Lỗi: {str(e)}")
     except Exception as e:
         import traceback
         logging.error(traceback.format_exc())

@@ -596,6 +596,61 @@ def plot_volume_and_orders_distribution(df, resampled, symbol):
     fig.tight_layout()
     return fig
 
+def generate_intraday_chart_image(symbol):
+    """
+    Generates a static intraday chart image for Telegram using Matplotlib.
+    Returns a BytesIO object.
+    """
+    import io
+    try:
+        df = get_intraday_data(symbol)
+        if df.empty:
+            return None
+            
+        df = preprocess_data(df)
+        resampled = aggregate_data(df)
+        
+        if resampled.empty:
+            return None
+
+        # Create plot
+        plt.figure(figsize=(10, 6))
+        plt.style.use('dark_background')
+        
+        # Subplots: Price and Volume
+        ax1 = plt.subplot2grid((4, 1), (0, 0), rowspan=3)
+        ax2 = plt.subplot2grid((4, 1), (3, 0), rowspan=1, sharex=ax1)
+        
+        # Plot Price
+        ax1.plot(resampled.index, resampled['close'], color='#00ff00', linewidth=2, label='Giá')
+        # Simple VWAP
+        resampled['cum_vol'] = resampled['volume'].cumsum()
+        resampled['cum_vol_price'] = (resampled['close'] * resampled['volume']).cumsum()
+        resampled['vwap'] = resampled['cum_vol_price'] / resampled['cum_vol']
+        ax1.plot(resampled.index, resampled['vwap'], color='orange', linestyle='--', alpha=0.8, label='VWAP')
+        
+        ax1.set_title(f'Biểu đồ trong ngày: {symbol}', fontsize=14, color='white')
+        ax1.legend()
+        ax1.grid(alpha=0.2)
+        
+        # Plot Volume
+        colors = ['green' if r['close'] >= r['open'] else 'red' for _, r in resampled.iterrows()]
+        ax2.bar(resampled.index, resampled['volume'], color=colors, alpha=0.8)
+        ax2.grid(alpha=0.2)
+        
+        plt.xticks(rotation=0)
+        plt.tight_layout()
+        
+        # Save to buffer
+        buf = io.BytesIO()
+        plt.savefig(buf, format='png', dpi=100)
+        buf.seek(0)
+        plt.close()
+        return buf
+    except Exception as e:
+        print(f"Lỗi tạo biểu đồ: {e}")
+        return None
+
 def analyze_stock(symbol):
     """Phân tích chi tiết mã cổ phiếu"""
     try:
