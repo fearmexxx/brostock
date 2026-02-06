@@ -35,7 +35,6 @@ from vnstock import Listing, Quote
 
 # Load environment variables
 load_dotenv()
-TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 SUBSCRIBERS_FILE = "subscribers.txt"
 
 # Enable logging
@@ -363,11 +362,18 @@ async def startup_event():
     init_db()
     load_cache_from_db()
     
+    # Fetch token at startup to ensure env is ready
+    token = os.getenv("TELEGRAM_BOT_TOKEN")
+    
+    # Diagnostic: Log available keys related to Telegram (safely)
+    env_keys = [k for k in os.environ.keys() if "BOT" in k or "TELEGRAM" in k]
+    logger.info(f"Detected environment keys: {env_keys}")
+
     # Initialize Telegram Bot
-    if TOKEN:
+    if token:
         try:
-            logger.info("Starting Telegram Bot...")
-            tg_app = ApplicationBuilder().token(TOKEN).build()
+            logger.info(f"Starting Telegram Bot with token starting with: {token[:4]}...")
+            tg_app = ApplicationBuilder().token(token).build()
             tg_app.add_handler(CommandHandler('start', tg_start))
             tg_app.add_handler(CommandHandler('help', tg_start))
             tg_app.add_handler(CommandHandler('price', tg_price))
@@ -387,7 +393,7 @@ async def startup_event():
         except Exception as e:
             logger.error(f"Failed to start Telegram Bot: {e}", exc_info=True)
     else:
-        logger.warning("TELEGRAM_BOT_TOKEN not found. Bot will not start.")
+        logger.warning("TELEGRAM_BOT_TOKEN not found in environment.")
     
     asyncio.create_task(periodic_update())
 
