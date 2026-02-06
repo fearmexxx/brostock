@@ -365,23 +365,29 @@ async def startup_event():
     
     # Initialize Telegram Bot
     if TOKEN:
-        tg_app = ApplicationBuilder().token(TOKEN).build()
-        tg_app.add_handler(CommandHandler('start', tg_start))
-        tg_app.add_handler(CommandHandler('help', tg_start))
-        tg_app.add_handler(CommandHandler('price', tg_price))
-        tg_app.add_handler(CommandHandler('top', tg_top))
-        tg_app.add_handler(CommandHandler('signals', tg_signals))
-        tg_app.add_handler(CommandHandler('subscribe', tg_subscribe))
-        tg_app.add_handler(CommandHandler('unsubscribe', tg_unsubscribe))
-        
-        if tg_app.job_queue:
-            tg_app.job_queue.run_daily(daily_report, time=dt_time(hour=9, minute=0)) # 16:00 ICT
+        try:
+            logger.info("Starting Telegram Bot...")
+            tg_app = ApplicationBuilder().token(TOKEN).build()
+            tg_app.add_handler(CommandHandler('start', tg_start))
+            tg_app.add_handler(CommandHandler('help', tg_start))
+            tg_app.add_handler(CommandHandler('price', tg_price))
+            tg_app.add_handler(CommandHandler('top', tg_top))
+            tg_app.add_handler(CommandHandler('signals', tg_signals))
+            tg_app.add_handler(CommandHandler('subscribe', tg_subscribe))
+            tg_app.add_handler(CommandHandler('unsubscribe', tg_unsubscribe))
+            
+            if tg_app.job_queue:
+                tg_app.job_queue.run_daily(daily_report, time=dt_time(hour=9, minute=0)) # 16:00 ICT
 
-        await tg_app.initialize()
-        await tg_app.start()
-        await tg_app.updater.start_polling()
-        app.state.tg_app = tg_app
-        print("Telegram Bot started.")
+            await tg_app.initialize()
+            await tg_app.start()
+            await tg_app.updater.start_polling()
+            app.state.tg_app = tg_app
+            logger.info("Telegram Bot is polling successfully.")
+        except Exception as e:
+            logger.error(f"Failed to start Telegram Bot: {e}", exc_info=True)
+    else:
+        logger.warning("TELEGRAM_BOT_TOKEN not found. Bot will not start.")
     
     asyncio.create_task(periodic_update())
 
