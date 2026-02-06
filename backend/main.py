@@ -22,7 +22,7 @@ from backtester import run_backtest
 from database import place_trade, get_portfolio, save_market_cache, get_market_cache, init_db
 from vnstock import Listing, Quote
 import pandas as pd
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone, time as dt_time
 from concurrent.futures import ThreadPoolExecutor
 import asyncio
 import time
@@ -122,11 +122,19 @@ def load_cache_from_db():
 
 async def update_market_data(force=False):
     """Fetches market-wide rankings and indices."""
-    if not force and not is_trading_time() and market_cache["last_updated"] is not None:
-        print("Outside trading hours. Skipping market data update.")
+    utc_now = datetime.now(timezone.utc)
+    vn_tz = timezone(timedelta(hours=7))
+    now = utc_now.astimezone(vn_tz)
+    
+    # Allow updates during trading hours OR EOD window (3:45 PM - 7:00 PM)
+    is_eod_window = now.weekday() <= 4 and dt_time(15, 45) <= now.time() <= dt_time(19, 0)
+    trading = is_trading_time()
+
+    if not force and not trading and not is_eod_window and market_cache["last_updated"] is not None:
+        print("Outside update hours. Skipping market data update.")
         return
 
-    print(f"Starting market data update at {datetime.now()} (Force: {force})")
+    print(f"Starting market data update at {datetime.now()} (Force: {force}, EOD: {is_eod_window})")
     try:
         # Use timedelta for robust date calculation
         start_date = (datetime.now() - timedelta(days=120)).strftime('%Y-%m-%d')
@@ -137,6 +145,7 @@ async def update_market_data(force=False):
         indices_data = {}
         for idx in indices_list:
             try:
+                time.sleep(1.0) # More throttling
                 q = Quote(symbol=idx, source='vci')
                 df = q.history(start=start_date, end=end_date)
                 if df is not None and len(df) >= 2:
@@ -148,7 +157,6 @@ async def update_market_data(force=False):
                         "pct_change": float((curr / prev - 1) * 100),
                         "volume": int(df['volume'].iloc[-1])
                     }
-                time.sleep(0.5) 
             except Exception as e:
                 print(f"Error fetching index {idx}: {e}")
         
@@ -176,7 +184,7 @@ async def update_market_data(force=False):
             print(f"Processing data for {len(symbols)} symbols...")
             def fetch_stock_full(symbol):
                 try:
-                    time.sleep(0.2) # Throttle requests
+                    time.sleep(0.5) # Increased throttle
                     q = Quote(symbol=symbol, source='vci')
                     df = q.history(start=start_date, end=end_date)
                     if df is not None and not df.empty and len(df) >= 2:
@@ -188,8 +196,8 @@ async def update_market_data(force=False):
                         
                         return {
                             "symbol": symbol,
-                            "price": float(curr),
-                            "change": float(curr - prev),
+                            "price": float(curr) * 1000,
+                            "change": float(curr - prev) * 1000,
                             "pct_change": float((curr / prev - 1) * 100),
                             "volume": int(df['volume'].iloc[-1]),
                             "signal_score": metrics.get('signal_score', 0),
@@ -199,7 +207,9 @@ async def update_market_data(force=False):
                 except: pass
                 return None
 
-            with ThreadPoolExecutor(max_workers=2) as executor: # Reduced workers
+            # Sequential processing is safer for rate limits if max_workers=1 or just loop
+            # But let's keep max_workers=1 to ensure sequential with delay
+            with ThreadPoolExecutor(max_workers=1) as executor:
                 results = list(executor.map(fetch_stock_full, symbols))
             
             valid_data = [r for r in results if r]
