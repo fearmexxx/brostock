@@ -97,6 +97,7 @@ async def price_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(f"🔍 Analyzing {symbol}...")
 
     try:
+        # 1. Historical Data Analysis
         df = get_stock_history_data(symbol)
         if df.empty:
             await update.message.reply_text(f"❌ Data not found for {symbol}.")
@@ -106,8 +107,19 @@ async def price_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         score = metrics.get('signal_score', 0)
         label = metrics.get('signal_label', 'Neutral')
         price = metrics.get('current_price_daily', 0)
-        trend = metrics.get('trend_strength', 0)
-        surge = metrics.get('volume_surge', 0)
+        
+        # 2. Intraday Flow Analysis
+        from stock_analyzer import get_intraday_data, preprocess_data
+        intra_df = get_intraday_data(symbol)
+        buy_vol = 0
+        sell_vol = 0
+        net_flow = 0
+        if not intra_df.empty:
+            p_df = preprocess_data(intra_df)
+            buy_vol = p_df[intra_df['match_type'] == 'Buy']['volume'].sum()
+            sell_vol = p_df[intra_df['match_type'] == 'Sell']['volume'].sum()
+            net_flow = (p_df[intra_df['match_type'] == 'Buy']['value'].sum() - 
+                        p_df[intra_df['match_type'] == 'Sell']['value'].sum())
 
         # Emoji mapping
         emoji = "⚪"
@@ -116,17 +128,39 @@ async def price_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         elif score <= -7: emoji = "💀"
         elif score <= -3: emoji = "⚠️"
 
+        # Crossover alerts
+        cross_text = ""
+        if metrics.get('golden_cross'): cross_text = "🌟 *GOLDEN CROSS (EMA5 > SMA20)*\n"
+        if metrics.get('death_cross'): cross_text = "💀 *DEATH CROSS (EMA5 < SMA20)*\n"
+
         text = (
             f"{emoji} *{symbol} - {label}*\n"
             f"━━━━━━━━━━━━━━━━━━\n"
             f"💰 *Price:* {format_number(price)} VND\n"
             f"📊 *Score:* {score}/10\n"
-            f"📈 *Trend:* {trend:+.2f}%\n"
-            f"🔊 *Vol Surge:* {surge:.2f}x\n\n"
+            f"📈 *Trend:* {metrics.get('trend_strength', 0):+.2f}%\n"
+            f"🔥 *RSI:* {metrics.get('rsi', 0):.2f}\n"
+            f"━━━━━━━━━━━━━━━━━━\n"
+            f"📏 *MA Status:*\n"
+            f"  • EMA 5: {format_number(metrics.get('ema_5'))}\n"
+            f"  • SMA 20: {format_number(metrics.get('sma_20'))}\n"
+            f"  • SMA 50: {format_number(metrics.get('sma_50'))}\n"
+            f"{cross_text}"
+            f"━━━━━━━━━━━━━━━━━━\n"
+            f"🌊 *Intraday Flow:*\n"
+            f"  • Buy Vol: {format_number(buy_vol)}\n"
+            f"  • Sell Vol: {format_number(sell_vol)}\n"
+            f"  • Net Flow: {format_number(net_flow)} VND\n"
+            f"━━━━━━━━━━━━━━━━━━\n"
+            f"🔮 *5-Day Prediction:*\n"
+            f"  • Outlook: *{metrics.get('prediction_label')}*\n"
+            f"  • Target: {metrics.get('prediction_5d_pct', 0):+.2f}%\n\n"
             f"_{'Buy' if score >= 5 else 'Sell' if score <= -3 else 'Hold'} recommendation based on BroStock v2.0 algorithm._"
         )
         await update.message.reply_text(text, parse_mode='Markdown')
     except Exception as e:
+        import traceback
+        logging.error(traceback.format_exc())
         await update.message.reply_text(f"❌ Error: {str(e)}")
 
 async def top_command(update: Update, context: ContextTypes.DEFAULT_TYPE):

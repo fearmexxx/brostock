@@ -202,7 +202,21 @@ def calculate_trend_metrics(df):
     # MAs
     sma_50 = df['close'].tail(50).mean()
     sma_20 = df['close'].tail(20).mean()
+    ema_5 = df['close'].ewm(span=5, adjust=False).mean().iloc[-1]
     
+    # RSI (14 days)
+    delta = df['close'].diff()
+    gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
+    loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
+    rs = gain / loss
+    rsi = 100 - (100 / (1 + rs)).iloc[-1]
+
+    # Crossovers
+    prev_ema5 = df['close'].ewm(span=5, adjust=False).mean().iloc[-2]
+    prev_sma20 = df['close'].tail(21).head(20).mean()
+    golden_cross = (prev_ema5 <= prev_sma20) and (ema_5 > sma_20)
+    death_cross = (prev_ema5 >= prev_sma20) and (ema_5 < sma_20)
+
     # Trend Strength
     trend_strength = ((current_price - sma_50) / sma_50) * 100
     
@@ -218,6 +232,19 @@ def calculate_trend_metrics(df):
     
     # Momentum
     ret_7d = (current_price / df['close'].iloc[-7] - 1) * 100 if len(df) >= 7 else 0
+
+    # --- Prediction (5-7 days) ---
+    # Simple linear regression on last 14 days + RSI context
+    y = df['close'].tail(14).values
+    x = np.arange(len(y))
+    slope, intercept = np.polyfit(x, y, 1)
+    pred_price = slope * (len(y) + 5) + intercept
+    
+    # Adjust prediction based on RSI
+    if rsi > 70: pred_price *= 0.98 # Overbought correction
+    elif rsi < 30: pred_price *= 1.02 # Oversold bounce
+    
+    prediction_pct = (pred_price / current_price - 1) * 100
 
     # --- Signal Score Calculation (-10 to +10) ---
     score = 0
@@ -240,6 +267,10 @@ def calculate_trend_metrics(df):
     if volume_surge < 0.8: score -= 1
     if current_volume > avg_volume_20: score += 1
     
+    # Bonus for Crossovers
+    if golden_cross: score += 2
+    if death_cross: score -= 2
+
     score = max(min(score, 10), -10) # Clamp
     
     return {
@@ -253,7 +284,15 @@ def calculate_trend_metrics(df):
         'volume_surge': volume_surge,
         'is_uptrend': current_price > sma_50,
         'signal_score': score,
-        'signal_label': 'Strong Bullish' if score >= 7 else 'Bullish' if score >= 3 else 'Neutral' if score > -3 else 'Bearish' if score >= -7 else 'Strong Bearish'
+        'signal_label': 'Strong Bullish' if score >= 7 else 'Bullish' if score >= 3 else 'Neutral' if score > -3 else 'Bearish' if score >= -7 else 'Strong Bearish',
+        'ema_5': ema_5,
+        'sma_20': sma_20,
+        'sma_50': sma_50,
+        'rsi': rsi,
+        'golden_cross': golden_cross,
+        'death_cross': death_cross,
+        'prediction_5d_pct': prediction_pct,
+        'prediction_label': 'UPWARD' if prediction_pct > 2 else 'DOWNWARD' if prediction_pct < -2 else 'SIDEWAYS'
     }
 
 # 2. Pre-processing data | Tiền xử lý dữ liệu
