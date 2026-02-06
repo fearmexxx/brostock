@@ -116,10 +116,10 @@ async def price_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         net_flow = 0
         if not intra_df.empty:
             p_df = preprocess_data(intra_df)
-            buy_vol = p_df[intra_df['match_type'] == 'Buy']['volume'].sum()
-            sell_vol = p_df[intra_df['match_type'] == 'Sell']['volume'].sum()
-            net_flow = (p_df[intra_df['match_type'] == 'Buy']['value'].sum() - 
-                        p_df[intra_df['match_type'] == 'Sell']['value'].sum())
+            buy_vol = p_df[p_df['match_type'] == 'Buy']['volume'].sum()
+            sell_vol = p_df[p_df['match_type'] == 'Sell']['volume'].sum()
+            net_flow = (p_df[p_df['match_type'] == 'Buy']['value'].sum() - 
+                        p_df[p_df['match_type'] == 'Sell']['value'].sum())
 
         # Emoji mapping
         emoji = "⚪"
