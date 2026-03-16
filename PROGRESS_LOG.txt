@@ -1,0 +1,40 @@
+# BroStock Progress Log - March 16, 2026
+
+## Summary
+Upgraded the core analysis engine to the **Institutional Multi-Factor Trading Signal Framework**, introducing a sophisticated -100 to +100 Conviction Score.
+
+## Key Changes
+
+### 1. Signal Engine Upgrade (`stock_analyzer.py`)
+- **New Architecture:** Implemented a five-factor model:
+    - Trend (30%): SMA cross & Price position.
+    - Momentum (20%): RSI, MACD, ROC.
+    - Volume Flow (15%): Volume Surge, OBV, VWAP.
+    - Volatility (15%): ATR & Bollinger Band width.
+    - Mean Reversion (20%): RSI & BB extremes.
+- **Dynamic Weighting:** Integrated ADX-based regime detection. Weights shift between Trend-following and Mean-reversion based on market strength.
+- **Conviction Score:** Transitioned from -10/+10 to -100/+100 scale for higher precision.
+
+### 2. Backend & Bot Enhancements (`backend/main.py`)
+- **Telegram Bot v2.5:**
+    - Updated `/price` to show factor breakdowns (Trend, Momentum, etc.).
+    - Added Market Regime detection (Trending/Range) with ADX.
+    - Localized labels for the new conviction levels (e.g., "MUA MẠNH", "TIÊU CỰC").
+- **Market Scanning:** Adjusted global scan thresholds to align with the new scoring range.
+
+### 3. Frontend Dashboard (`frontend/components/DashboardClient.tsx`)
+- **Conviction Sidebar:** Replaced simple Bull/Bear indicators with a detailed factor breakdown UI.
+- **Regime Indicator:** Added a visual ADX-based market regime meter.
+- **Refined UI:** Improved readability of signal scores and 5-day outlooks.
+
+### 4. Backtester Synchronization (`backtester.py`)
+- **Vectorized Logic:** Ported the Institutional Factor logic to the backtester using optimized Pandas operations.
+- **Threshold Updates:** Updated buy/sell signals to use +/- 40 conviction score thresholds.
+
+## Verification
+- Created `test_new_engine.py` and confirmed correct score calculation for multiple stocks (FPT, VIC, VNM).
+- Verified regime detection correctly shifts weights based on ADX.
+
+## Next Steps
+- Implement "Smart Money Flow" analysis using historical order book data.
+- Add "Risk Score" metrics to the dashboard as specified in the framework.

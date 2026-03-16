@@ -182,8 +182,15 @@ def get_stock_history_data(symbol, days=365):
 
 def calculate_trend_metrics(df):
     """
-    Calculates trend metrics from historical data (Daily).
-    Includes a signal_score from -10 (Strong Bearish) to +10 (Strong Bullish).
+    Calculates institutional-grade trend metrics from historical data (Daily).
+    Produces a Conviction Score from -100 (Strong Sell) to +100 (Strong Buy).
+    
+    Factors:
+    1. Trend (30%) - SMA20/50/200, Price position.
+    2. Momentum (20%) - RSI, MACD, ROC.
+    3. Volume Flow (15%) - Volume Surge, OBV, VWAP.
+    4. Volatility (15%) - ATR expansion, Bollinger width.
+    5. Mean Reversion (20%) - Bollinger bands, RSI extremes.
     """
     if df.empty or len(df) < 50:
         return {}
@@ -194,103 +201,170 @@ def calculate_trend_metrics(df):
         
     current_price = df['close'].iloc[-1]
     
-    # 52-week High/Low (approx 252 trading days)
-    lookback = min(len(df), 252)
-    fifty_two_week_high = df['high'].tail(lookback).max()
-    fifty_two_week_low = df['low'].tail(lookback).min()
-    
-    # MAs
+    # 1. Trend Factor (30%) - Target: +/- 30
+    sma_200 = df['close'].tail(200).mean() if len(df) >= 200 else df['close'].mean()
     sma_50 = df['close'].tail(50).mean()
     sma_20 = df['close'].tail(20).mean()
-    ema_5 = df['close'].ewm(span=5, adjust=False).mean().iloc[-1]
     
-    # RSI (14 days)
+    trend_score = 0
+    if sma_20 > sma_50: trend_score += 10
+    if sma_50 > sma_200: trend_score += 10
+    if current_price > sma_50: trend_score += 5
+    if current_price > sma_200: trend_score += 5
+    
+    if sma_20 < sma_50: trend_score -= 10
+    if sma_50 < sma_200: trend_score -= 10
+    if current_price < sma_50: trend_score -= 5
+    if current_price < sma_200: trend_score -= 5
+    
+    # 2. Momentum Factor (20%) - Target: +/- 20
+    # RSI
     delta = df['close'].diff()
     gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
     loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
     rs = gain / loss
-    rsi = 100 - (100 / (1 + rs)).iloc[-1]
-
-    # Crossovers
-    prev_ema5 = df['close'].ewm(span=5, adjust=False).mean().iloc[-2]
-    prev_sma20 = df['close'].tail(21).head(20).mean()
-    golden_cross = (prev_ema5 <= prev_sma20) and (ema_5 > sma_20)
-    death_cross = (prev_ema5 >= prev_sma20) and (ema_5 < sma_20)
-
-    # Trend Strength
-    trend_strength = ((current_price - sma_50) / sma_50) * 100
+    rsi = (100 - (100 / (1 + rs))).iloc[-1]
     
-    # Volatility
-    daily_returns = df['close'].pct_change()
-    volatility = daily_returns.std() * np.sqrt(252) * 100
+    # MACD
+    ema_12 = df['close'].ewm(span=12, adjust=False).mean()
+    ema_26 = df['close'].ewm(span=26, adjust=False).mean()
+    macd_line = ema_12 - ema_26
+    signal_line = macd_line.ewm(span=9, adjust=False).mean()
+    macd_hist = macd_line - signal_line
     
-    # Volume Analysis
-    avg_volume_20 = df['volume'].tail(20).mean()
-    avg_volume_7 = df['volume'].tail(7).mean()
-    current_volume = df['volume'].iloc[-1]
-    volume_surge = (current_volume / avg_volume_7) if avg_volume_7 > 0 else 1
+    # ROC (14d)
+    roc_14 = ((current_price / df['close'].iloc[-14]) - 1) * 100 if len(df) >= 14 else 0
     
-    # Momentum
-    ret_7d = (current_price / df['close'].iloc[-7] - 1) * 100 if len(df) >= 7 else 0
+    mom_score = 0
+    if 50 <= rsi <= 70: mom_score += 5
+    elif rsi > 70: mom_score -= 5
+    elif rsi < 30: mom_score += 8
+    
+    if macd_line.iloc[-1] > signal_line.iloc[-1]: mom_score += 5
+    if macd_hist.iloc[-1] > macd_hist.iloc[-2]: mom_score += 3
+    if roc_14 > 5: mom_score += 4
+    elif roc_14 < -5: mom_score -= 4
+    
+    # 3. Volume Flow (15%) - Target: +/- 15
+    avg_vol_20 = df['volume'].tail(20).mean()
+    avg_vol_7 = df['volume'].tail(7).mean()
+    curr_vol = df['volume'].iloc[-1]
+    vol_surge = curr_vol / avg_vol_7 if avg_vol_7 > 0 else 1
+    
+    # OBV
+    obv = (np.sign(df['close'].diff()) * df['volume']).fillna(0).cumsum()
+    obv_trend = 4 if obv.iloc[-1] > obv.tail(10).mean() else -4
+    
+    vol_score = 0
+    if vol_surge > 2: vol_score += 8
+    elif vol_surge > 1.5: vol_score += 6
+    vol_score += obv_trend
+    if current_price > (df['close'] * df['volume']).tail(20).sum() / df['volume'].tail(20).sum(): # Proxy VWAP
+        vol_score += 3
+        
+    # 4. Volatility Regime (15%) - Target: +/- 15
+    # ATR
+    tr = pd.concat([
+        df['high'] - df['low'],
+        (df['high'] - df['close'].shift(1)).abs(),
+        (df['low'] - df['close'].shift(1)).abs()
+    ], axis=1).max(axis=1)
+    atr = tr.rolling(14).mean().iloc[-1]
+    
+    # Bollinger Bands
+    std_20 = df['close'].tail(20).std()
+    upper_bb = sma_20 + (2 * std_20)
+    lower_bb = sma_20 - (2 * std_20)
+    bb_width = (upper_bb - lower_bb) / sma_20
+    
+    vlt_score = 0
+    # Expanding volatility with price move
+    if tr.iloc[-1] > atr and abs(roc_14) > 2: vlt_score += 5
+    # Squeeze
+    if bb_width < df['close'].rolling(100).std().mean() / sma_20: vlt_score += 4
+    # Risk off: Extreme spike
+    if tr.iloc[-1] > atr * 2.5: vlt_score -= 5
+    
+    # 5. Mean Reversion (20%) - Target: +/- 20
+    mr_score = 0
+    if current_price < lower_bb: mr_score += 10
+    if rsi < 30: mr_score += 6
+    if current_price > upper_bb: mr_score -= 10
+    if rsi > 75: mr_score -= 6
+    
+    # --- Market Regime Detection (ADX) ---
+    # Simplified ADX
+    plus_dm = df['high'].diff().clip(lower=0)
+    minus_dm = (-df['low'].diff()).clip(lower=0)
+    tr_smooth = tr.rolling(14).mean()
+    plus_di = 100 * (plus_dm.rolling(14).mean() / tr_smooth)
+    minus_di = 100 * (minus_dm.rolling(14).mean() / tr_smooth)
+    dx = 100 * (plus_di - minus_di).abs() / (plus_di + minus_di)
+    adx = dx.rolling(14).mean().iloc[-1]
+    
+    # Dynamic Weights
+    w_trend, w_mom, w_vol, w_vlt, w_mr = 0.30, 0.20, 0.15, 0.15, 0.20
+    if adx > 25: # Strong Trend
+        w_trend, w_mr = 0.40, 0.10
+    elif adx < 15: # Range Market
+        w_trend, w_mr = 0.15, 0.35
+        
+    # Final Score
+    raw_score = (trend_score * w_trend + 
+                 mom_score * w_mom + 
+                 vol_score * w_vol + 
+                 vlt_score * w_vlt + 
+                 mr_score * w_mr)
+    
+    # Map raw factors to -100 to +100 range
+    # Theoretical max raw is ~30 (if weights were 1.0)
+    # But since weights sum to 1.0, max is ~25-30. 
+    # Let's normalize by assuming max possible components
+    final_score = max(min(raw_score * 4, 100), -100) 
+    
+    # Labels
+    if final_score >= 70: label = 'Strong Buy'
+    elif final_score >= 40: label = 'Buy'
+    elif final_score >= 15: label = 'Bullish Bias'
+    elif final_score > -15: label = 'Neutral'
+    elif final_score >= -40: label = 'Bearish Bias'
+    elif final_score >= -70: label = 'Sell'
+    else: label = 'Strong Sell'
 
-    # --- Prediction (5-7 days) ---
-    # Simple linear regression on last 14 days + RSI context
+    # Prediction 5d (keep existing logic but refine)
     y = df['close'].tail(14).values
     x = np.arange(len(y))
     slope, intercept = np.polyfit(x, y, 1)
     pred_price = slope * (len(y) + 5) + intercept
-    
-    # Adjust prediction based on RSI
-    if rsi > 70: pred_price *= 0.98 # Overbought correction
-    elif rsi < 30: pred_price *= 1.02 # Oversold bounce
-    
+    if rsi > 70: pred_price *= 0.98
+    elif rsi < 30: pred_price *= 1.02
     prediction_pct = (pred_price / current_price - 1) * 100
 
-    # --- Signal Score Calculation (-10 to +10) ---
-    score = 0
-    
-    # 1. Trend (Max 4 pts)
-    if current_price > sma_50: score += 2
-    if trend_strength > 5: score += 2
-    if current_price < sma_50: score -= 2
-    if trend_strength < -5: score -= 2
-    
-    # 2. Momentum (Max 3 pts)
-    if current_price > sma_20: score += 2
-    else: score -= 2
-    
-    if ret_7d > 2: score += 1
-    if ret_7d < -2: score -= 1
-    
-    # 3. Volume Flow (Max 3 pts)
-    if volume_surge > 1.2: score += 2
-    if volume_surge < 0.8: score -= 1
-    if current_volume > avg_volume_20: score += 1
-    
-    # Bonus for Crossovers
-    if golden_cross: score += 2
-    if death_cross: score -= 2
-
-    score = max(min(score, 10), -10) # Clamp
-    
     return {
         'current_price_daily': current_price,
-        'price_to_52w_high': (current_price / fifty_two_week_high - 1) * 100,
-        'price_to_52w_low': (current_price / fifty_two_week_low - 1) * 100,
-        'annual_volatility': volatility,
-        'trend_strength': trend_strength,
-        'avg_volume_daily': avg_volume_20,
-        'avg_volume_7d': avg_volume_7,
-        'volume_surge': volume_surge,
-        'is_uptrend': current_price > sma_50,
-        'signal_score': score,
-        'signal_label': 'Strong Bullish' if score >= 7 else 'Bullish' if score >= 3 else 'Neutral' if score > -3 else 'Bearish' if score >= -7 else 'Strong Bearish',
-        'ema_5': ema_5,
-        'sma_20': sma_20,
-        'sma_50': sma_50,
+        'signal_score': final_score,
+        'signal_label': label,
+        'market_regime': 'Trending' if adx > 25 else 'Weak Trend' if adx > 15 else 'Range',
+        'adx': adx,
+        'factors': {
+            'trend': trend_score,
+            'momentum': mom_score,
+            'volume': vol_score,
+            'volatility': vlt_score,
+            'mean_reversion': mr_score
+        },
+        'weights': {
+            'trend': w_trend,
+            'momentum': w_mom,
+            'volume': w_vol,
+            'volatility': w_vlt,
+            'mean_reversion': w_mr
+        },
         'rsi': rsi,
-        'golden_cross': golden_cross,
-        'death_cross': death_cross,
+        'macd_hist': macd_hist.iloc[-1],
+        'atr': atr,
+        'bb_width': bb_width,
+        'vol_surge': vol_surge,
         'prediction_5d_pct': prediction_pct,
         'prediction_label': 'UPWARD' if prediction_pct > 2 else 'DOWNWARD' if prediction_pct < -2 else 'SIDEWAYS'
     }

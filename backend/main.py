@@ -210,7 +210,18 @@ async def tg_price(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         metrics = calculate_trend_metrics(df)
         score = metrics.get('signal_score', 0)
-        label_vn = {'Strong Bullish': 'Tăng mạnh', 'Bullish': 'Tăng', 'Neutral': 'Trung lập', 'Bearish': 'Giảm', 'Strong Bearish': 'Giảm mạnh'}.get(metrics.get('signal_label'), 'Trung lập')
+        factors = metrics.get('factors', {})
+        
+        # Vietnamese Labels
+        label_vn = {
+            'Strong Buy': 'MUA MẠNH',
+            'Buy': 'MUA',
+            'Bullish Bias': 'TÍCH CỰC',
+            'Neutral': 'TRUNG LẬP',
+            'Bearish Bias': 'TIÊU CỰC',
+            'Sell': 'BÁN',
+            'Strong Sell': 'BÁN MẠNH'
+        }.get(metrics.get('signal_label'), 'TRUNG LẬP')
         
         intra_df = get_intraday_data(symbol)
         buy_vol, sell_vol, net_flow = 0, 0, 0
@@ -220,20 +231,35 @@ async def tg_price(update: Update, context: ContextTypes.DEFAULT_TYPE):
             sell_vol = p_df[p_df['match_type'] == 'Sell']['volume'].sum()
             net_flow = p_df[p_df['match_type'] == 'Buy']['value'].sum() - p_df[p_df['match_type'] == 'Sell']['value'].sum()
 
-        emoji = "🚀" if score >= 7 else "✅" if score >= 3 else "💀" if score <= -7 else "⚠️" if score <= -3 else "⚪"
-        cross_text = "🌟 *GIAO CẮT VÀNG*\n" if metrics.get('golden_cross') else "💀 *GIAO CẮT TỬ THẦN*\n" if metrics.get('death_cross') else ""
+        # Emojis based on -100 to +100 score
+        if score >= 70: emoji = "🚀🚀"
+        elif score >= 40: emoji = "🚀"
+        elif score >= 15: emoji = "✅"
+        elif score <= -70: emoji = "💀💀"
+        elif score <= -40: emoji = "💀"
+        elif score <= -15: emoji = "⚠️"
+        else: emoji = "⚪"
+
         pred_vn = {'UPWARD': 'TĂNG', 'DOWNWARD': 'GIẢM', 'SIDEWAYS': 'ĐI NGANG'}.get(metrics.get('prediction_label'), 'ĐI NGANG')
+        regime_vn = {'Trending': 'CÓ XU HƯỚNG', 'Weak Trend': 'XU HƯỚNG YẾU', 'Range': 'ĐI NGANG (RANGE)'}.get(metrics.get('market_regime'), 'KHÔNG RÕ')
 
         text = (
-            f"{emoji} *{symbol} - {label_vn}*\n━━━━━━━━━━━━━━━━━━\n"
+            f"{emoji} *{symbol} - {label_vn}* ({score:+.0f})\n"
+            f"━━━━━━━━━━━━━━━━━━\n"
             f"💰 *Giá:* {format_number(metrics.get('current_price_daily'))} VND\n"
-            f"📊 *Điểm:* {score}/10 | RSI: {metrics.get('rsi', 0):.2f}\n"
-            f"📈 *Sức mạnh:* {metrics.get('trend_strength', 0):+.2f}%\n"
-            f"{cross_text}━━━━━━━━━━━━━━━━━━\n"
-            f"🌊 *Dòng tiền:* Mua {format_number(buy_vol)}, Bán {format_number(sell_vol)}\n"
-            f"💧 *Ròng:* {format_number(net_flow)} VND\n━━━━━━━━━━━━━━━━━━\n"
-            f"🔮 *Dự báo 5 ngày:* *{pred_vn}* ({metrics.get('prediction_5d_pct', 0):+.2f}%)\n\n"
-            f"_{'Nên Mua' if score >= 5 else 'Nên Bán' if score <= -3 else 'Theo dõi'}_"
+            f"📈 *Dự báo (5d):* {pred_vn} ({metrics.get('prediction_5d_pct', 0):+.2f}%)\n"
+            f"🌐 *Thị trường:* {regime_vn} (ADX: {metrics.get('adx', 0):.1f})\n\n"
+            f"📊 *Điểm thành phần:*\n"
+            f"├ Trend: {factors.get('trend', 0):+d}\n"
+            f"├ Momentum: {factors.get('momentum', 0):+d}\n"
+            f"├ Volume: {factors.get('volume', 0):+d}\n"
+            f"├ Volatility: {factors.get('volatility', 0):+d}\n"
+            f"└ Mean Rev: {factors.get('mean_reversion', 0):+d}\n\n"
+            f"💧 *Dòng tiền trong ngày:*\n"
+            f"├ Net Flow: {format_number(net_flow)} VND\n"
+            f"└ Mua: {buy_vol/1e6:.1f}M | Bán: {sell_vol/1e6:.1f}M\n"
+            f"━━━━━━━━━━━━━━━━━━\n"
+            f"BroStock Pro v2.5 Engine 🤖"
         )
         await update.message.reply_text(text, parse_mode='Markdown')
         chart_buf = generate_intraday_chart_image(symbol)
@@ -314,7 +340,7 @@ async def update_market_data(force=False):
 
         # 2. Rankings & Signals
         symbols = []
-        for g in ['VN100', 'HNX30']:
+        for g in ['VN30', 'VN100', 'HNX30']:
             try:
                 s = Listing().symbols_by_group(g)
                 if s is not None: symbols.extend(s.tolist())
@@ -343,12 +369,12 @@ async def update_market_data(force=False):
             }
             save_market_cache("top10", market_cache["top10"])
             
-            bull = df_all[df_all['signal_score'] >= 3].sort_values(["signal_score", "trend_strength"], ascending=[False, False]).head(15)
-            bear = df_all[df_all['signal_score'] <= -3].sort_values(["signal_score", "trend_strength"], ascending=[True, True]).head(15)
+            bull = df_all[df_all['signal_score'] >= 15].sort_values(["signal_score", "trend_strength"], ascending=[False, False]).head(15)
+            bear = df_all[df_all['signal_score'] <= -15].sort_values(["signal_score", "trend_strength"], ascending=[True, True]).head(15)
             market_cache["signals"] = {"bullish": convert_numpy(bull.to_dict('records')), "bearish": convert_numpy(bear.to_dict('records'))}
             save_market_cache("signals", market_cache["signals"])
             
-            scan = {r['symbol']: {"score": float(r['signal_score']), "action": "BUY" if r['signal_score'] >= 5 else "SELL" if r['signal_score'] <= -2 else "NEUTRAL", "price": float(r['price']), "pct_change": float(r['pct_change'])} for r in valid_data}
+            scan = {r['symbol']: {"score": float(r['signal_score']), "action": "BUY" if r['signal_score'] >= 40 else "SELL" if r['signal_score'] <= -40 else "NEUTRAL", "price": float(r['price']), "pct_change": float(r['pct_change'])} for r in valid_data}
             market_cache["scan"] = scan
             save_market_cache("scan", scan)
         

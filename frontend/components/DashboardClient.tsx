@@ -10,10 +10,19 @@ interface StockData {
   current_price: number
   summary: Record<string, number>
   trend_metrics: {
-      trend_strength?: number
-      is_uptrend?: boolean
-      annual_volatility?: number
-      signal_score?: number
+      signal_score: number
+      signal_label: string
+      market_regime: string
+      adx: number
+      factors: {
+          trend: number
+          momentum: number
+          volume: number
+          volatility: number
+          mean_reversion: number
+      }
+      prediction_5d_pct: number
+      prediction_label: string
   }
   intraday_data: Array<{ time: string; close: number; vwap: number; net_flow: number }>
   historical_data: Array<{ time: string; close: number; MA5: number; MA20: number; volume: number }>
@@ -277,43 +286,99 @@ export function DashboardClient({ data }: { data: StockData | null }) {
 
             {/* Sidebar (1/4) - Signals */}
             <div className="space-y-6">
-                <Card className="bg-blue-50 border-blue-100">
-                    <CardHeader>
-                        <CardTitle className="text-blue-900">⚡ Signals</CardTitle>
+                <Card className="bg-white border-none shadow-sm overflow-hidden">
+                    <CardHeader className="bg-slate-900 text-white py-4">
+                        <CardTitle className="text-lg flex justify-between items-center">
+                            <span>Conviction Score</span>
+                            <span className="text-2xl font-black">{stock.trend_metrics?.signal_score?.toFixed(0)}</span>
+                        </CardTitle>
                     </CardHeader>
-                    <CardContent className="space-y-6">
-                        {stock && stock.trend_metrics && stock.trend_metrics.trend_strength !== undefined ? (
-                            <>
-                                {/* Trend Indicator */}
-                                <div className={`p-4 rounded-lg text-center text-white ${
-                                    stock.trend_metrics.is_uptrend ? 'bg-green-500' : 'bg-red-500'
+                    <CardContent className="p-0">
+                        {stock && stock.trend_metrics ? (
+                            <div className="space-y-0">
+                                {/* Large Status Indicator */}
+                                <div className={`p-6 text-center text-white font-bold text-xl ${
+                                    stock.trend_metrics.signal_score >= 40 ? 'bg-green-600' :
+                                    stock.trend_metrics.signal_score >= 15 ? 'bg-green-500' :
+                                    stock.trend_metrics.signal_score <= -40 ? 'bg-red-600' :
+                                    stock.trend_metrics.signal_score <= -15 ? 'bg-red-500' : 'bg-gray-500'
                                 }`}>
-                                    <h3 className="text-xl font-bold">
-                                        {stock.trend_metrics.is_uptrend ? 'BULLISH 🐂' : 'BEARISH 🐻'}
-                                    </h3>
-                                    <p className="text-sm opacity-90">Trend Strength: {stock.trend_metrics.trend_strength?.toFixed(1) || '0.0'}%</p>
+                                    {stock.trend_metrics.signal_label?.toUpperCase()}
                                 </div>
 
-                                {/* Volatility */}
-                                <div>
-                                    <p className="text-sm text-gray-500 mb-1">Annual Volatility</p>
-                                    <p className="text-xl font-bold text-gray-800">
-                                        {stock.trend_metrics.annual_volatility?.toFixed(1)}%
-                                    </p>
-                                </div>
+                                <div className="p-6 space-y-6">
+                                    {/* Market Regime */}
+                                    <div>
+                                        <p className="text-[10px] uppercase tracking-wider text-gray-400 font-bold mb-1">Market Regime</p>
+                                        <div className="flex justify-between items-end">
+                                            <p className="font-bold text-slate-800">{stock.trend_metrics.market_regime}</p>
+                                            <p className="text-xs text-gray-500">ADX: {stock.trend_metrics.adx?.toFixed(1)}</p>
+                                        </div>
+                                        <div className="w-full bg-gray-100 h-1.5 mt-2 rounded-full overflow-hidden">
+                                            <div 
+                                                className={`h-full ${stock.trend_metrics.adx > 25 ? 'bg-blue-600' : 'bg-gray-400'}`} 
+                                                style={{ width: `${Math.min(stock.trend_metrics.adx * 2, 100)}%` }}
+                                            ></div>
+                                        </div>
+                                    </div>
 
-                                {/* Buy/Sell Ratio */}
-                                <div>
-                                    <p className="text-sm text-gray-500 mb-1">Buy/Sell Vol Ratio</p>
-                                    <p className="text-xl font-bold text-gray-800">
-                                        {buySellRatio?.toFixed(2)}
-                                    </p>
-                                    <p className="text-xs text-gray-400">{"(>1 means Strong Buying)"}</p>
+                                    {/* Factor Breakdown */}
+                                    <div className="space-y-3">
+                                        <p className="text-[10px] uppercase tracking-wider text-gray-400 font-bold mb-2">Factor Breakdown</p>
+                                        
+                                        {[
+                                            { label: 'Trend', val: stock.trend_metrics.factors?.trend, max: 30 },
+                                            { label: 'Momentum', val: stock.trend_metrics.factors?.momentum, max: 20 },
+                                            { label: 'Volume Flow', val: stock.trend_metrics.factors?.volume, max: 15 },
+                                            { label: 'Volatility', val: stock.trend_metrics.factors?.volatility, max: 15 },
+                                            { label: 'Mean Rev.', val: stock.trend_metrics.factors?.mean_reversion, max: 20 }
+                                        ].map(f => (
+                                            <div key={f.label} className="space-y-1">
+                                                <div className="flex justify-between text-xs">
+                                                    <span className="text-gray-600">{f.label}</span>
+                                                    <span className={`font-mono font-bold ${f.val >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                                        {f.val > 0 ? '+' : ''}{f.val}
+                                                    </span>
+                                                </div>
+                                                <div className="flex w-full bg-gray-100 h-1 rounded-full overflow-hidden">
+                                                    <div 
+                                                        className={`${f.val >= 0 ? 'bg-green-500' : 'bg-red-500'}`}
+                                                        style={{ 
+                                                            width: `${Math.abs(f.val / f.max) * 100}%`,
+                                                            marginLeft: f.val >= 0 ? '0' : 'auto'
+                                                        }}
+                                                    ></div>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+
+                                    {/* Prediction */}
+                                    <div className="pt-4 border-t">
+                                        <p className="text-[10px] uppercase tracking-wider text-gray-400 font-bold mb-1">5-Day Outlook</p>
+                                        <div className="flex justify-between items-center">
+                                            <span className={`font-bold ${
+                                                stock.trend_metrics.prediction_label === 'UPWARD' ? 'text-green-600' :
+                                                stock.trend_metrics.prediction_label === 'DOWNWARD' ? 'text-red-600' : 'text-gray-600'
+                                            }`}>
+                                                {stock.trend_metrics.prediction_label}
+                                            </span>
+                                            <span className="text-sm font-medium">{stock.trend_metrics.prediction_5d_pct?.toFixed(2)}%</span>
+                                        </div>
+                                    </div>
                                 </div>
-                            </>
+                            </div>
                         ) : (
-                            <p className="text-gray-400 text-sm">No Signal Data</p>
+                            <div className="p-6 text-center text-gray-400 text-sm">No Signal Data</div>
                         )}
+                    </CardContent>
+                </Card>
+
+                {/* Legend/Info */}
+                <Card className="bg-slate-50 border-none">
+                    <CardContent className="p-4 text-[10px] text-gray-500 leading-relaxed">
+                        <p className="font-bold mb-1 text-gray-700">BroStock Engine v2.5</p>
+                        Institutional multi-factor model combining trend, momentum, institutional volume flow, volatility regime, and mean reversion. Updated every minute.
                     </CardContent>
                 </Card>
             </div>
