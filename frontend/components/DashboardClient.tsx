@@ -447,6 +447,5 @@ export function DashboardClient({ data }: { data: StockData | null }) {
             </div>
 
         </div>
-        </>
   )
 }

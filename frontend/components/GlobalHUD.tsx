@@ -1,18 +1,21 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { TrendingUp, TrendingDown, Minus, Activity } from "lucide-react"
+import { TrendingUp, TrendingDown, Minus, Activity, Clock } from "lucide-react"
 
 interface MarketStats {
     indices: Record<string, { value: number; change: number; pct_change: number }>;
     market_stats?: {
         breadth: { advancing: number; declining: number; unchanged: number };
         total_volume: number;
+        timestamp: string;
     };
+    last_updated?: string;
 }
 
 export function GlobalHUD() {
     const [stats, setStats] = useState<MarketStats | null>(null)
+    const [currentTime, setCurrentTime] = useState(new Date())
     const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
     const fetchStats = async () => {
@@ -29,8 +32,12 @@ export function GlobalHUD() {
 
     useEffect(() => {
         fetchStats()
-        const interval = setInterval(fetchStats, 60000) // 1 minute
-        return () => clearInterval(interval)
+        const marketInterval = setInterval(fetchStats, 60000) // 1 minute
+        const clockInterval = setInterval(() => setCurrentTime(new Date()), 1000) // 1 second
+        return () => {
+            clearInterval(marketInterval)
+            clearInterval(clockInterval)
+        }
     }, [])
 
     if (!stats) return null
@@ -39,6 +46,11 @@ export function GlobalHUD() {
     const total = (breadth.advancing + breadth.declining + breadth.unchanged) || 1
     const advPct = (breadth.advancing / total) * 100
     const decPct = (breadth.declining / total) * 100
+
+    // Data Status logic
+    const dataTime = stats.market_stats?.timestamp || stats.last_updated
+    const timeDiff = dataTime ? Math.floor((new Date().getTime() - new Date(dataTime).getTime()) / 1000) : null
+    const isDataStale = timeDiff !== null && timeDiff > 300 // 5 mins
 
     return (
         <div className="sticky top-0 z-50 w-full bg-[#0f172a] text-white border-b border-slate-700 shadow-xl overflow-x-auto no-scrollbar">
@@ -74,12 +86,38 @@ export function GlobalHUD() {
                 </div>
 
                 {/* Liquidity Section */}
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 border-r border-slate-700 pr-6 h-full">
                     <Activity size={14} className="text-blue-400" />
                     <span className="text-[10px] font-bold text-slate-400 uppercase">Khối lượng</span>
                     <span className="text-sm font-black text-blue-100">
-                        {(stats.market_stats?.total_volume || 0).toLocaleString()} <span className="text-[10px] text-slate-500 ml-1">CP</span>
+                        {(stats.market_stats?.total_volume || 0).toLocaleString()} <span className="text-[10px] text-slate-500 ml-1 uppercase">CP</span>
                     </span>
+                </div>
+
+                {/* Clock & Data Status */}
+                <div className="ml-auto flex items-center gap-6">
+                    <div className="flex flex-col items-end">
+                        <div className="flex items-center gap-2">
+                             <Clock size={12} className={isDataStale ? "text-orange-400" : "text-slate-400"} />
+                             <span className={`text-[10px] font-bold uppercase tracking-widest ${isDataStale ? "text-orange-400" : "text-slate-400"}`}>
+                                {isDataStale ? "Dữ liệu cũ" : "Real-time"}
+                             </span>
+                        </div>
+                        {dataTime && (
+                             <span className="text-[9px] text-slate-500 font-mono">
+                                 Cập nhật: {new Date(dataTime).toLocaleTimeString('vi-VN')}
+                             </span>
+                        )}
+                    </div>
+                    
+                    <div className="flex flex-col items-end border-l border-slate-700 pl-6">
+                        <span className="text-sm font-black tracking-tighter">
+                            {currentTime.toLocaleTimeString('vi-VN', { hour12: false })}
+                        </span>
+                        <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">
+                            {currentTime.toLocaleDateString('vi-VN', { weekday: 'short', day: '2-digit', month: '2-digit', year: 'numeric' })}
+                        </span>
+                    </div>
                 </div>
 
             </div>
