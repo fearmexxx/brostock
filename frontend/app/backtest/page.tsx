@@ -54,7 +54,7 @@ export default function BacktestPage() {
           const data = await res.json()
           
           if (!res.ok) {
-              throw new Error(data.detail || "Backtest failed")
+              throw new Error(data.detail || "Kiểm thử thất bại")
           }
           
           setResult(data)
@@ -62,7 +62,7 @@ export default function BacktestPage() {
           if (e instanceof Error) {
             setError(e.message)
           } else {
-            setError("An unknown error occurred")
+            setError("Đã xảy ra lỗi không xác định")
           }
       } finally {
           setLoading(false)
@@ -76,8 +76,8 @@ export default function BacktestPage() {
         <div className="flex items-center gap-3">
             <FlaskConical className="text-purple-600" size={32} />
             <div>
-                <h1 className="text-3xl font-bold text-gray-900">Strategy Backtester</h1>
-                <p className="text-sm text-gray-500">Test the &quot;BroStock v2.0&quot; algo on historical data</p>
+                <h1 className="text-3xl font-bold text-gray-900">Bộ kiểm thử chiến lược</h1>
+                <p className="text-sm text-gray-500">Kiểm tra thuật toán "BroStock v2.0" trên dữ liệu lịch sử</p>
             </div>
         </div>
 
@@ -86,7 +86,7 @@ export default function BacktestPage() {
             <CardContent className="p-6">
                 <div className="flex flex-wrap gap-6 items-end">
                     <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Symbol</label>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Mã</label>
                         <input 
                             value={symbol} 
                             onChange={(e) => setSymbol(e.target.value.toUpperCase())}
@@ -94,7 +94,7 @@ export default function BacktestPage() {
                         />
                     </div>
                     <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Start Date</label>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Ngày bắt đầu</label>
                         <input 
                             type="date" 
                             value={startDate} 
@@ -103,7 +103,7 @@ export default function BacktestPage() {
                         />
                     </div>
                     <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">End Date</label>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Ngày kết thúc</label>
                         <input 
                             type="date" 
                             value={endDate} 
@@ -116,7 +116,7 @@ export default function BacktestPage() {
                         disabled={loading}
                         className="bg-purple-700 text-white px-6 py-2 rounded hover:bg-purple-800 transition flex items-center gap-2 disabled:opacity-50"
                     >
-                        {loading ? "Running..." : <><Play size={16} /> Run Backtest</>}
+                        {loading ? "Đang chạy..." : <><Play size={16} /> Chạy kiểm thử</>}
                     </button>
                 </div>
                 {error && (
@@ -135,7 +135,7 @@ export default function BacktestPage() {
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                     <Card>
                         <CardContent className="p-6">
-                            <p className="text-gray-500 text-sm">Total Return</p>
+                            <p className="text-gray-500 text-sm">Tổng lợi nhuận</p>
                             <p className={`text-2xl font-bold ${result.total_return_pct >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                                 {result.total_return_pct >= 0 ? '+' : ''}{result.total_return_pct.toFixed(2)}%
                             </p>
@@ -143,7 +143,7 @@ export default function BacktestPage() {
                     </Card>
                     <Card>
                         <CardContent className="p-6">
-                            <p className="text-gray-500 text-sm">Win Rate</p>
+                            <p className="text-gray-500 text-sm">Tỷ lệ thắng</p>
                             <p className="text-2xl font-bold text-blue-600">
                                 {result.win_rate.toFixed(2)}%
                             </p>
@@ -151,7 +151,7 @@ export default function BacktestPage() {
                     </Card>
                     <Card>
                         <CardContent className="p-6">
-                            <p className="text-gray-500 text-sm">Max Drawdown</p>
+                            <p className="text-gray-500 text-sm">Sụt giảm tối đa</p>
                             <p className="text-2xl font-bold text-red-600">
                                 {result.max_drawdown_pct.toFixed(2)}%
                             </p>
@@ -159,7 +159,7 @@ export default function BacktestPage() {
                     </Card>
                     <Card>
                         <CardContent className="p-6">
-                            <p className="text-gray-500 text-sm">Total Trades</p>
+                            <p className="text-gray-500 text-sm">Tổng số lệnh</p>
                             <p className="text-2xl font-bold text-gray-800">
                                 {result.total_trades}
                             </p>
@@ -170,7 +170,7 @@ export default function BacktestPage() {
                 {/* Chart */}
                 <Card>
                     <CardHeader>
-                        <CardTitle>Equity Curve</CardTitle>
+                        <CardTitle>Biểu đồ tài sản</CardTitle>
                     </CardHeader>
                     <CardContent className="h-[400px]">
                         <ResponsiveContainer width="100%" height="100%">
@@ -187,7 +187,7 @@ export default function BacktestPage() {
                                     tickFormatter={(val) => `${(val/1000000).toFixed(0)}M`}
                                 />
                                 <Tooltip 
-                                    formatter={(val: any) => [`${val?.toLocaleString()} VND`, "Equity"]}
+                                    formatter={(val: any) => [`${val?.toLocaleString()} VND`, "Tài sản"]}
                                     labelFormatter={(label) => new Date(label).toLocaleDateString()}
                                 />
                                 <Line 
@@ -205,19 +205,19 @@ export default function BacktestPage() {
                 {/* Trade Log */}
                 <Card>
                     <CardHeader>
-                        <CardTitle>Trade History</CardTitle>
+                        <CardTitle>Lịch sử giao dịch</CardTitle>
                     </CardHeader>
                     <CardContent>
                         <div className="overflow-x-auto max-h-[400px] overflow-y-auto">
                             <table className="w-full text-sm text-left">
                                 <thead className="bg-gray-50 text-gray-500 sticky top-0">
                                     <tr>
-                                        <th className="px-4 py-2">Date</th>
-                                        <th className="px-4 py-2">Type</th>
-                                        <th className="px-4 py-2 text-right">Price</th>
-                                        <th className="px-4 py-2 text-right">Shares</th>
-                                        <th className="px-4 py-2 text-right">Value</th>
-                                        <th className="px-4 py-2 text-right">P/L</th>
+                                        <th className="px-4 py-2">Ngày</th>
+                                        <th className="px-4 py-2">Loại</th>
+                                        <th className="px-4 py-2 text-right">Giá</th>
+                                        <th className="px-4 py-2 text-right">Số lượng</th>
+                                        <th className="px-4 py-2 text-right">Giá trị</th>
+                                        <th className="px-4 py-2 text-right">Lời/Lỗ</th>
                                     </tr>
                                 </thead>
                                 <tbody>

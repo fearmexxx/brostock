@@ -126,7 +126,7 @@ export default function PortfolioPage() {
   const handleTrade = () => {
       setTradeMsg("")
       if (!symbol || qty <= 0 || price <= 0) {
-          setTradeMsg("❌ Invalid input. Please check Symbol, Qty, and Price.")
+          setTradeMsg("❌ Dữ liệu không hợp lệ. Vui lòng kiểm tra Mã, Số lượng và Giá.")
           return
       }
       
@@ -158,12 +158,12 @@ export default function PortfolioPage() {
                   "Total Cost": cost
               })
           }
-          setTradeMsg(`✅ Bought ${qty} ${tradeSymbol} @ ${price.toLocaleString()}`)
+          setTradeMsg(`✅ Đã mua ${qty} ${tradeSymbol} giá ${price.toLocaleString()}`)
 
       } else {
           // SELL
           if (existingIdx === -1 || newPortfolio[existingIdx].Quantity < qty) {
-              setTradeMsg("❌ Insufficient holdings to sell.")
+              setTradeMsg("❌ Không đủ số lượng để bán.")
               return
           }
           
@@ -182,7 +182,7 @@ export default function PortfolioPage() {
                   "Total Cost": newCost
               }
           }
-           setTradeMsg(`✅ Sold ${qty} ${tradeSymbol} @ ${price.toLocaleString()}`)
+           setTradeMsg(`✅ Đã bán ${qty} ${tradeSymbol} giá ${price.toLocaleString()}`)
       }
 
       // Update State & LocalStorage
@@ -204,7 +204,7 @@ export default function PortfolioPage() {
   }
 
   const clearPortfolio = () => {
-      if(confirm("Are you sure you want to clear your entire portfolio?")) {
+      if(confirm("Bạn có chắc chắn muốn xóa toàn bộ danh mục?")) {
           setPortfolio([])
           savePortfolio([])
       }
@@ -216,7 +216,7 @@ export default function PortfolioPage() {
   const totalPL = totalNAV - totalCost
   const totalPLPct = totalCost ? (totalPL / totalCost) * 100 : 0
 
-  if (loading) return <div className="p-10 text-center text-gray-500">Loading Portfolio...</div>
+  if (loading) return <div className="p-10 text-center text-gray-500">Đang tải danh mục...</div>
 
   return (
     <div className="min-h-screen bg-gray-50 p-8">
@@ -226,12 +226,12 @@ export default function PortfolioPage() {
              <div className="flex items-center gap-3">
                 <Briefcase className="text-blue-900" size={32} />
                 <div>
-                    <h1 className="text-3xl font-bold text-gray-900">My Portfolio (Local)</h1>
-                    <p className="text-sm text-gray-500">Data saved to browser storage</p>
+                    <h1 className="text-3xl font-bold text-gray-900">Danh mục của tôi (Local)</h1>
+                    <p className="text-sm text-gray-500">Dữ liệu được lưu trong bộ nhớ trình duyệt</p>
                 </div>
              </div>
              <button onClick={clearPortfolio} className="text-red-500 text-sm flex items-center gap-1 hover:bg-red-50 p-2 rounded">
-                 <Trash2 size={16} /> Clear Data
+                 <Trash2 size={16} /> Xóa dữ liệu
              </button>
          </div>
 
@@ -239,19 +239,19 @@ export default function PortfolioPage() {
          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
              <Card>
                  <CardContent className="p-6">
-                     <p className="text-gray-500 text-sm">Total Asset Value (NAV)</p>
+                     <p className="text-gray-500 text-sm">Tổng giá trị tài sản (NAV)</p>
                      <p className="text-3xl font-bold text-blue-900">{totalNAV.toLocaleString()} ₫</p>
                  </CardContent>
              </Card>
              <Card>
                  <CardContent className="p-6">
-                     <p className="text-gray-500 text-sm">Total Invested</p>
+                     <p className="text-gray-500 text-sm">Tổng vốn đầu tư</p>
                      <p className="text-3xl font-bold text-gray-700">{totalCost.toLocaleString()} ₫</p>
                  </CardContent>
              </Card>
              <Card>
                  <CardContent className="p-6">
-                     <p className="text-gray-500 text-sm">Total Profit/Loss</p>
+                     <p className="text-gray-500 text-sm">Tổng Lời/Lỗ</p>
                      <div className={`flex items-end gap-2 ${totalPL >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                         <p className="text-3xl font-bold">{totalPL.toLocaleString()} ₫</p>
                         <span className="mb-1 font-medium">({totalPLPct.toFixed(2)}%)</span>
@@ -263,38 +263,38 @@ export default function PortfolioPage() {
          {/* Trade Section */}
          <Card>
              <CardHeader>
-                 <CardTitle>Place New Order (Simulate)</CardTitle>
+                 <CardTitle>Đặt lệnh mới (Mô phỏng)</CardTitle>
              </CardHeader>
              <CardContent>
                  <div className="flex flex-wrap gap-4 items-end">
                      <div>
-                         <label className="block text-sm font-medium text-gray-700 mb-1">Symbol</label>
+                         <label className="block text-sm font-medium text-gray-700 mb-1">Mã</label>
                          <input value={symbol} onChange={e => setSymbol(e.target.value.toUpperCase())} className="border p-2 rounded w-24 font-bold" />
                      </div>
                      <div>
-                         <label className="block text-sm font-medium text-gray-700 mb-1">Action</label>
+                         <label className="block text-sm font-medium text-gray-700 mb-1">Hành động</label>
                          <select value={type} onChange={e => setType(e.target.value)} className="border p-2 rounded">
-                             <option value="BUY">BUY</option>
-                             <option value="SELL">SELL</option>
+                             <option value="BUY">MUA</option>
+                             <option value="SELL">BÁN</option>
                          </select>
                      </div>
                      <div>
-                         <label className="block text-sm font-medium text-gray-700 mb-1">Quantity</label>
+                         <label className="block text-sm font-medium text-gray-700 mb-1">Số lượng</label>
                          <input type="number" value={qty} onChange={e => setQty(parseInt(e.target.value))} className="border p-2 rounded w-32" step="100" />
                      </div>
                      <div>
-                         <label className="block text-sm font-medium text-gray-700 mb-1">Price (VND)</label>
+                         <label className="block text-sm font-medium text-gray-700 mb-1">Giá (VND)</label>
                          <input 
                             type="number" 
                             value={price} 
                             onChange={e => setPrice(parseFloat(e.target.value))} 
                             className="border p-2 rounded w-32" 
                             step="100" 
-                            placeholder="e.g. 20500"
+                            placeholder="VD: 20500"
                          />
                      </div>
                      <button onClick={handleTrade} className="bg-blue-900 text-white px-6 py-2 rounded hover:bg-blue-800 transition">
-                         Submit Order
+                         Gửi lệnh
                      </button>
                  </div>
                  {tradeMsg && <p className="mt-4 text-sm font-medium">{tradeMsg}</p>}
@@ -304,20 +304,20 @@ export default function PortfolioPage() {
          {/* Holdings Table */}
          <Card>
              <CardHeader>
-                 <CardTitle>Current Holdings</CardTitle>
+                 <CardTitle>Danh mục hiện tại</CardTitle>
              </CardHeader>
              <CardContent>
                  <div className="overflow-x-auto">
                      <table className="w-full text-sm text-left">
                          <thead className="text-xs text-gray-700 uppercase bg-gray-50">
                              <tr>
-                                 <th className="px-6 py-3">Symbol</th>
-                                 <th className="px-6 py-3">Signal</th>
-                                 <th className="px-6 py-3">Qty</th>
-                                 <th className="px-6 py-3">Avg Price</th>
-                                 <th className="px-6 py-3">Current Price</th>
-                                 <th className="px-6 py-3">Market Value</th>
-                                 <th className="px-6 py-3">P/L</th>
+                                 <th className="px-6 py-3">Mã</th>
+                                 <th className="px-6 py-3">Tín hiệu</th>
+                                 <th className="px-6 py-3">SL</th>
+                                 <th className="px-6 py-3">Giá TB</th>
+                                 <th className="px-6 py-3">Giá hiện tại</th>
+                                 <th className="px-6 py-3">Giá trị TT</th>
+                                 <th className="px-6 py-3">Lời/Lỗ</th>
                              </tr>
                          </thead>
                          <tbody>
@@ -326,13 +326,13 @@ export default function PortfolioPage() {
                                      <td className="px-6 py-4 font-bold text-blue-900">{item.Symbol}</td>
                                      <td className="px-6 py-4">
                                          {item.Signal === 'BUY' && (
-                                             <span className="px-2 py-1 bg-green-100 text-green-700 rounded text-xs font-bold">BUY</span>
+                                             <span className="px-2 py-1 bg-green-100 text-green-700 rounded text-xs font-bold">MUA</span>
                                          )}
                                          {item.Signal === 'SELL' && (
-                                             <span className="px-2 py-1 bg-red-100 text-red-700 rounded text-xs font-bold">SELL</span>
+                                             <span className="px-2 py-1 bg-red-100 text-red-700 rounded text-xs font-bold">BÁN</span>
                                          )}
                                          {item.Signal === 'NEUTRAL' && (
-                                             <span className="px-2 py-1 bg-gray-100 text-gray-600 rounded text-xs">HOLD</span>
+                                             <span className="px-2 py-1 bg-gray-100 text-gray-600 rounded text-xs">GIỮ</span>
                                          )}
                                      </td>
                                      <td className="px-6 py-4">{item.Quantity.toLocaleString()}</td>
@@ -347,7 +347,7 @@ export default function PortfolioPage() {
                              ))}
                          </tbody>
                      </table>
-                     {portfolio.length === 0 && <div className="text-center p-8 text-gray-500">No holdings found. Start trading to see data here.</div>}
+                     {portfolio.length === 0 && <div className="text-center p-8 text-gray-500">Không tìm thấy cổ phiếu nào. Bắt đầu giao dịch để xem dữ liệu tại đây.</div>}
                  </div>
              </CardContent>
          </Card>

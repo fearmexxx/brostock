@@ -18,13 +18,13 @@ export default async function Home({
   try {
       const res = await fetch(`${API_URL}/api/stock/${symbol}`, { cache: 'no-store' })
       if (!res.ok) {
-          if (res.status === 404) error = "Symbol not found or no data available."
-          else error = "Failed to fetch stock data."
+          if (res.status === 404) error = "Không tìm thấy mã hoặc không có dữ liệu."
+          else error = "Lỗi khi tải dữ liệu cổ phiếu."
       } else {
           stockData = await res.json()
       }
   } catch {
-      error = "Connection error to backend."
+      error = "Lỗi kết nối tới máy chủ."
   }
 
   return (
@@ -34,16 +34,16 @@ export default async function Home({
 
           {/* Search Bar & Main Content */}
           <div className="flex flex-col md:flex-row gap-4 items-center justify-between">
-             <h1 className="text-2xl font-bold text-gray-800">BroStock Analysis: {symbol}</h1>
+             <h1 className="text-2xl font-bold text-gray-800">Phân tích BroStock: {symbol}</h1>
              <form action="/" method="get" className="flex gap-2">
                  <input 
                     name="symbol" 
                     defaultValue={symbol}
                     className="border p-2 rounded shadow-sm" 
-                    placeholder="Enter Symbol (e.g. HPG)" 
+                    placeholder="Nhập mã (VD: HPG)" 
                  />
                  <button type="submit" className="bg-blue-900 text-white px-4 py-2 rounded shadow hover:bg-blue-800 transition">
-                    Analyze
+                    Phân tích
                  </button>
              </form>
           </div>

@@ -54,7 +54,7 @@ export default function SignalAlerts() {
                                 symbol: sym,
                                 type: "SELL",
                                 score: marketData.score,
-                                msg: `Warning: ${sym} has a Strong Sell signal (Score: ${marketData.score}). Consider exiting.`
+                                msg: `Cảnh báo: ${sym} có tín hiệu Bán mạnh (Điểm: ${marketData.score}). Cân nhắc thoát vị thế.`
                             })
                         }
                         // HOLD CONFIRMATION (Optional, maybe just strong buys?)
@@ -63,7 +63,7 @@ export default function SignalAlerts() {
                                 symbol: sym,
                                 type: "BUY",
                                 score: marketData.score,
-                                msg: `Good Hold: ${sym} maintains a Strong Buy signal (Score: ${marketData.score}).`
+                                msg: `Nắm giữ tốt: ${sym} duy trì tín hiệu Mua mạnh (Điểm: ${marketData.score}).`
                             })
                         }
                     }
@@ -85,7 +85,7 @@ export default function SignalAlerts() {
         <div className="space-y-4 mb-8">
             <h3 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
                 <AlertTriangle size={20} className="text-orange-500" /> 
-                Portfolio Alerts
+                Cảnh báo danh mục
             </h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {alerts.map((alert, idx) => (
@@ -98,11 +98,11 @@ export default function SignalAlerts() {
                             )}
                             <div>
                                 <p className={`font-bold ${alert.type === 'SELL' ? 'text-red-800' : 'text-green-800'}`}>
-                                    {alert.type === 'SELL' ? 'SELL SIGNAL' : 'STRONG TREND'}
+                                    {alert.type === 'SELL' ? 'TÍN HIỆU BÁN' : 'XU HƯỚNG MẠNH'}
                                 </p>
                                 <p className="text-sm text-gray-700">{alert.msg}</p>
                                 <Link href={`/?symbol=${alert.symbol}`} className="text-xs underline mt-1 block text-gray-500 hover:text-gray-800">
-                                    View Analysis
+                                    Xem phân tích
                                 </Link>
                             </div>
                         </CardContent>

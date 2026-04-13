@@ -378,11 +378,23 @@ export function DashboardClient({ data }: { data: StockData | null }) {
                                 </div>
                             </div>
                             <div className="text-right">
-                                <p className="text-[10px] text-blue-300 uppercase font-bold">Rủi ro</p>
-                                <p className={`text-sm font-black ${
-                                    stock.trend_metrics.risk_score > 60 ? 'text-red-400' : 
-                                    stock.trend_metrics.risk_score < 30 ? 'text-green-400' : 'text-yellow-400'
-                                }`}>{stock.trend_metrics.risk_label} ({stock.trend_metrics.risk_score})</p>
+                                <p className="text-[10px] text-blue-300 uppercase font-bold">Thị trường</p>
+                                <p className="text-sm font-black text-blue-100">{stock.trend_metrics.market_regime}</p>
+                                <p className="text-[9px] text-blue-400 font-mono">ADX: {stock.trend_metrics.adx?.toFixed(1)}</p>
+                            </div>
+                        </div>
+
+                        {/* Market Regime Bar */}
+                        <div className="mb-6 p-2 bg-blue-950/50 rounded border border-blue-800/30">
+                            <div className="flex justify-between text-[9px] uppercase font-bold text-blue-400 mb-1">
+                                <span>Range</span>
+                                <span>Trend</span>
+                            </div>
+                            <div className="w-full bg-blue-900 h-1.5 rounded-full overflow-hidden">
+                                <div 
+                                    className={`h-full transition-all duration-1000 ${stock.trend_metrics.adx > 25 ? 'bg-green-400' : stock.trend_metrics.adx > 15 ? 'bg-yellow-400' : 'bg-blue-400'}`}
+                                    style={{ width: `${Math.min(100, (stock.trend_metrics.adx / 50) * 100)}%` }}
+                                ></div>
                             </div>
                         </div>
 
@@ -401,6 +413,29 @@ export function DashboardClient({ data }: { data: StockData | null }) {
                                         <span>{f.val}</span>
                                     </div>
                                     <div className="w-full bg-blue-950 h-1.5 rounded-full overflow-hidden shadow-inner">
+                                        <div 
+                                            className={`h-full ${f.color} transition-all duration-1000 ease-out`}
+                                            style={{ width: `${f.val}%` }}
+                                        ></div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+
+                        {/* Risk Architecture (NEW) */}
+                        <div className="space-y-4 pt-4 mt-4 border-t border-blue-800/50">
+                            <p className="text-[10px] font-bold text-blue-300 uppercase tracking-widest">Cấu trúc Rủi ro ({stock.trend_metrics.risk_label})</p>
+                            {[
+                                { label: 'Biến động (ATR)', val: stock.trend_metrics.risk_factors?.volatility, color: 'bg-red-400' },
+                                { label: 'Dãn cách (BB)', val: stock.trend_metrics.risk_factors?.expansion, color: 'bg-orange-400' },
+                                { label: 'Sụt giảm (MDD)', val: stock.trend_metrics.risk_factors?.drawdown, color: 'bg-rose-400' }
+                            ].map(f => (
+                                <div key={f.label} className="space-y-1.5">
+                                    <div className="flex justify-between text-[9px] font-bold uppercase tracking-tight text-blue-200/70">
+                                        <span>{f.label}</span>
+                                        <span>{f.val}</span>
+                                    </div>
+                                    <div className="w-full bg-blue-950 h-1 rounded-full overflow-hidden">
                                         <div 
                                             className={`h-full ${f.color} transition-all duration-1000 ease-out`}
                                             style={{ width: `${f.val}%` }}

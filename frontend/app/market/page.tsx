@@ -122,61 +122,33 @@ export default function MarketPage() {
   };
 
   if (loading && !data) {
-
     return (
-
       <div className="flex items-center justify-center min-h-screen">
-
-        <p className="text-gray-500 animate-pulse">Loading Market Data...</p>
-
+        <p className="text-gray-500 animate-pulse">Đang tải dữ liệu thị trường...</p>
       </div>
-
     )
-
   }
 
-
-
   return (
-
     <div className="min-h-screen bg-gray-50 p-8">
-
       <div className="max-w-7xl mx-auto space-y-8">
-
         
-
         <div className="flex justify-between items-end">
-
             <div>
-
-                <h1 className="text-3xl font-bold text-gray-900">Market Overview</h1>
-
-                <p className="text-gray-500">Real-time indicators and rankings</p>
-
+                <h1 className="text-3xl font-bold text-gray-900">Tổng quan thị trường</h1>
+                <p className="text-gray-500">Chỉ số và xếp hạng thời gian thực</p>
             </div>
-
             <div className="text-right space-y-2">
-
                 <button 
-
                     onClick={triggerUpdate}
-
                     className="text-xs bg-white border px-3 py-1 rounded hover:bg-gray-50 transition"
-
                 >
-
-                    Trigger Market Update
-
+                    Cập nhật thị trường
                 </button>
-
                 {data?.last_updated && (
-
-                    <p className="text-[10px] text-gray-400">Last updated: {new Date(data.last_updated as string).toLocaleTimeString()}</p>
-
+                    <p className="text-[10px] text-gray-400">Cập nhật lần cuối: {new Date(data.last_updated as string).toLocaleTimeString()}</p>
                 )}
-
             </div>
-
         </div>
 
 
@@ -243,7 +215,7 @@ export default function MarketPage() {
 
             >
 
-                Rankings
+                Xếp hạng
 
             </button>
 
@@ -255,7 +227,7 @@ export default function MarketPage() {
 
             >
 
-                Market Signals
+                Tín hiệu thị trường
 
             </button>
 
@@ -279,7 +251,7 @@ export default function MarketPage() {
 
                         <TrendingUp className="text-green-600" size={20} />
 
-                        <CardTitle className="text-lg">Top Gainers</CardTitle>
+                        <CardTitle className="text-lg">Tăng nhiều nhất</CardTitle>
 
                     </CardHeader>
 
@@ -291,11 +263,11 @@ export default function MarketPage() {
 
                                 <tr>
 
-                                    <th className="px-4 py-2">Symbol</th>
+                                    <th className="px-4 py-2">Mã</th>
 
-                                    <th className="px-4 py-2 text-right">Price</th>
+                                    <th className="px-4 py-2 text-right">Giá</th>
 
-                                    <th className="px-4 py-2 text-right">Change</th>
+                                    <th className="px-4 py-2 text-right">Thay đổi</th>
 
                                 </tr>
 
@@ -345,7 +317,7 @@ export default function MarketPage() {
 
                         <TrendingUp className="text-red-600 rotate-180" size={20} />
 
-                        <CardTitle className="text-lg">Top Losers</CardTitle>
+                        <CardTitle className="text-lg">Giảm nhiều nhất</CardTitle>
 
                     </CardHeader>
 
@@ -357,11 +329,11 @@ export default function MarketPage() {
 
                                 <tr>
 
-                                    <th className="px-4 py-2">Symbol</th>
+                                    <th className="px-4 py-2">Mã</th>
 
-                                    <th className="px-4 py-2 text-right">Price</th>
+                                    <th className="px-4 py-2 text-right">Giá</th>
 
-                                    <th className="px-4 py-2 text-right">Change</th>
+                                    <th className="px-4 py-2 text-right">Thay đổi</th>
 
                                 </tr>
 
@@ -411,7 +383,7 @@ export default function MarketPage() {
 
                         <BarChart3 className="text-blue-600" size={20} />
 
-                        <CardTitle className="text-lg">Most Active (Vol)</CardTitle>
+                        <CardTitle className="text-lg">Giao dịch nhiều nhất (KL)</CardTitle>
 
                     </CardHeader>
 
@@ -423,11 +395,11 @@ export default function MarketPage() {
 
                                 <tr>
 
-                                    <th className="px-4 py-2">Symbol</th>
+                                    <th className="px-4 py-2">Mã</th>
 
-                                    <th className="px-4 py-2 text-right">Volume</th>
+                                    <th className="px-4 py-2 text-right">Khối lượng</th>
 
-                                    <th className="px-4 py-2 text-right">Price</th>
+                                    <th className="px-4 py-2 text-right">Giá</th>
 
                                 </tr>
 
@@ -487,7 +459,7 @@ export default function MarketPage() {
 
                         <TrendingUp className="text-green-600" size={20} />
 
-                        <CardTitle className="text-lg">Top 15 Bullish Signals</CardTitle>
+                        <CardTitle className="text-lg">15 tín hiệu Tích cực hàng đầu</CardTitle>
 
                     </CardHeader>
 
@@ -499,13 +471,13 @@ export default function MarketPage() {
 
                                 <tr>
 
-                                    <th className="px-4 py-2">Symbol</th>
+                                    <th className="px-4 py-2">Mã</th>
 
-                                    <th className="px-4 py-2">Signal</th>
+                                    <th className="px-4 py-2">Tín hiệu</th>
 
-                                    <th className="px-4 py-2 text-right">Strength</th>
+                                    <th className="px-4 py-2 text-right">Sức mạnh</th>
 
-                                    <th className="px-4 py-2 text-right">Price</th>
+                                    <th className="px-4 py-2 text-right">Giá</th>
 
                                 </tr>
 
@@ -569,7 +541,7 @@ export default function MarketPage() {
 
                         <TrendingUp className="text-red-600 rotate-180" size={20} />
 
-                        <CardTitle className="text-lg">Top 15 Bearish Signals</CardTitle>
+                        <CardTitle className="text-lg">15 tín hiệu Tiêu cực hàng đầu</CardTitle>
 
                     </CardHeader>
 
@@ -581,13 +553,13 @@ export default function MarketPage() {
 
                                 <tr>
 
-                                    <th className="px-4 py-2">Symbol</th>
+                                    <th className="px-4 py-2">Mã</th>
 
-                                    <th className="px-4 py-2">Signal</th>
+                                    <th className="px-4 py-2">Tín hiệu</th>
 
-                                    <th className="px-4 py-2 text-right">Strength</th>
+                                    <th className="px-4 py-2 text-right">Sức mạnh</th>
 
-                                    <th className="px-4 py-2 text-right">Price</th>
+                                    <th className="px-4 py-2 text-right">Giá</th>
 
                                 </tr>
 
