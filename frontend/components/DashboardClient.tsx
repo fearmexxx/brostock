@@ -78,69 +78,63 @@ export function DashboardClient({ data }: { data: StockData | null }) {
   if (!stock) return <p className="text-gray-500">Không có dữ liệu.</p>
 
   return (
-        <>
-        {/* Header */}
-        <div className="flex justify-between items-center">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900">BroStock Pro</h1>
-            <p className="text-gray-500">Phân tích chứng khoán Việt Nam thời gian thực</p>
-          </div>
-          <div className="flex gap-4">
-              <div className="flex bg-white rounded-lg p-1 border">
-                  {(["1D", "7D", "30D"] as const).map(range => (
-                      <button
-                        key={range}
-                        onClick={() => setTimeRange(range)}
-                        className={`px-4 py-1 rounded-md text-sm font-medium transition ${
-                            timeRange === range ? "bg-blue-600 text-white shadow" : "text-gray-600 hover:bg-gray-100"
-                        }`}
-                      >
-                          {range === "1D" ? "1N" : range}
-                      </button>
-                  ))}
-              </div>
-              <button 
-                onClick={refreshData}
-                className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition"
-              >
-                <RefreshCcw size={18} className={loading ? "animate-spin" : ""} />
-                Làm mới
-              </button>
-          </div>
-        </div>
-
+        <div className="space-y-4 pt-2">
         {/* Input & Key Stats */}
-        <Card className="bg-white border-none shadow-sm">
-            <CardContent className="flex items-center gap-6 p-4">
-              <div className="border rounded px-3 py-2 font-bold w-32 text-center text-lg bg-gray-50">
+        <Card className="bg-white border-none shadow-sm rounded-none border-b">
+            <CardContent className="flex items-center gap-4 p-2 px-4">
+              <div className="border rounded px-2 py-1 font-black w-24 text-center text-sm bg-slate-900 text-white">
                   {stock.symbol}
               </div>
-              <span className="text-gray-300 text-2xl">|</span>
               
-                 <div className="flex flex-wrap gap-8 w-full">
+                 <div className="flex flex-wrap gap-6 w-full items-center">
                     <div>
-                        <p className="text-sm text-gray-500">Giá hiện tại</p>
-                        <p className="text-2xl font-bold text-blue-900">
+                        <p className="text-[10px] uppercase font-bold text-gray-400">Giá hiện tại</p>
+                        <p className="text-lg font-black text-slate-900">
                           {stock.current_price.toLocaleString()} ₫
                         </p>
                     </div>
+                    <div className="h-8 w-px bg-gray-200 hidden md:block"></div>
                     <div>
-                        <p className="text-sm text-gray-500">Dòng tiền ròng (1N)</p>
-                        <p className={`text-2xl font-bold ${
+                        <p className="text-[10px] uppercase font-bold text-gray-400">Dòng tiền ròng</p>
+                        <p className={`text-lg font-black ${
                             parseVND(stock.summary['Dòng tiền ròng (VND)']) >= 0 
                             ? 'text-green-600' : 'text-red-600'
                         }`}>
                           {stock.summary['Dòng tiền ròng (VND)']}
                         </p>
                     </div>
+                    <div className="h-8 w-px bg-gray-200 hidden md:block"></div>
                     <div>
-                        <p className="text-sm text-gray-500">Dòng tiền Cá mập</p>
-                        <p className={`text-2xl font-bold ${
+                        <p className="text-[10px] uppercase font-bold text-gray-400">Dòng tiền Cá mập</p>
+                        <p className={`text-lg font-black ${
                             parseVND(stock.summary['Dòng tiền Cá mập ròng (VND)']) >= 0 
                             ? 'text-blue-600' : 'text-orange-600'
                         }`}>
                           {stock.summary['Dòng tiền Cá mập ròng (VND)']}
                         </p>
+                    </div>
+                    
+                    <div className="ml-auto flex gap-2">
+                        <div className="flex bg-gray-100 rounded p-0.5 border">
+                            {(["1D", "7D", "30D"] as const).map(range => (
+                                <button
+                                    key={range}
+                                    onClick={() => setTimeRange(range)}
+                                    className={`px-3 py-1 rounded text-[10px] font-bold transition ${
+                                        timeRange === range ? "bg-white text-slate-900 shadow-sm" : "text-gray-500 hover:text-slate-900"
+                                    }`}
+                                >
+                                    {range === "1D" ? "1N" : range}
+                                </button>
+                            ))}
+                        </div>
+                        <button 
+                            onClick={refreshData}
+                            className="p-2 text-slate-500 hover:text-blue-600 transition"
+                            title="Làm mới"
+                        >
+                            <RefreshCcw size={16} className={loading ? "animate-spin" : ""} />
+                        </button>
                     </div>
                  </div>
               

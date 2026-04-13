@@ -124,6 +124,9 @@ def load_cache_from_db():
     scan, _ = get_market_cache("scan")
     if scan: market_cache["scan"] = scan
 
+    stats, _ = get_market_cache("market_stats")
+    if stats: market_cache["market_stats"] = stats
+
     if market_cache["last_updated"]:
         print(f"Loaded market cache from DB. Last updated: {market_cache['last_updated']}")
 
@@ -406,6 +409,19 @@ async def update_market_data(force=False):
             scan = {r['symbol']: {"score": float(r['signal_score']), "action": "BUY" if r['signal_score'] >= 40 else "SELL" if r['signal_score'] <= -40 else "NEUTRAL", "price": float(r['price']), "pct_change": float(r['pct_change'])} for r in valid_data}
             market_cache["scan"] = scan
             save_market_cache("scan", scan)
+
+            # 3. Market Breadth & Liquidity
+            advancing = len(df_all[df_all['pct_change'] > 0])
+            declining = len(df_all[df_all['pct_change'] < 0])
+            unchanged = len(df_all[df_all['pct_change'] == 0])
+            total_vol = int(df_all['volume'].sum())
+            
+            market_cache["market_stats"] = {
+                "breadth": {"advancing": advancing, "declining": declining, "unchanged": unchanged},
+                "total_volume": total_vol,
+                "timestamp": datetime.now().isoformat()
+            }
+            save_market_cache("market_stats", market_cache["market_stats"])
         
         market_cache["last_updated"] = datetime.now().isoformat()
     except Exception as e: print(f"Error updating market: {e}")
