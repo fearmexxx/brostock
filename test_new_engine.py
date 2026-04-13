@@ -16,6 +16,7 @@ def test_engine(symbol="FPT"):
         print(f"Signal Score: {metrics.get('signal_score'):+.0f}")
         print(f"Signal Label: {metrics.get('signal_label')}")
         print(f"Market Regime: {metrics.get('market_regime')} (ADX: {metrics.get('adx', 0):.1f})")
+        print(f"Risk Score: {metrics.get('risk_score')}/100 ({metrics.get('risk_label')})")
         
         print("\nFactor Breakdown:")
         factors = metrics.get('factors', {})

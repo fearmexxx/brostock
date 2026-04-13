@@ -36,5 +36,35 @@ Upgraded the core analysis engine to the **Institutional Multi-Factor Trading Si
 - Verified regime detection correctly shifts weights based on ADX.
 
 ## Next Steps
-- Implement "Smart Money Flow" analysis using historical order book data.
-- Add "Risk Score" metrics to the dashboard as specified in the framework.
+- Port the new metrics (Smart Money, Risk Score) to the Frontend Dashboard UI.
+- Implement "Foreign & Proprietary" trading flow integration.
+- Refine backtester to include Risk-Adjusted Return metrics.
+
+# BroStock Progress Log - March 16, 2026 (Update)
+
+## Summary
+Successfully implemented **Institutional Phase 1: Advanced Metrics**. Added "Smart Money Flow" detection and "Risk Score" framework.
+
+## Key Changes
+
+### 1. Smart Money Flow Engine (`stock_analyzer.py`)
+- **Tick-Level Analysis:** Added logic to identify "Big Orders" using the 90th percentile volume threshold from intraday tick data.
+- **Institutional Net Flow:** Calculates Big Buy vs Big Sell volume to isolate "Cá mập" (Shark/Smart Money) activity from retail noise.
+- **Real-time Stats:** Integrated Big Flow metrics into `aggregate_data` and `calculate_summary`.
+
+### 2. Risk Score Framework (`stock_analyzer.py`)
+- **Multi-Factor Risk:** Implemented a 0-100 Risk Score based on:
+    - **Volatility (40%):** ATR relative to price.
+    - **Expansion (30%):** Bollinger Band width/squeeze detection.
+    - **Drawdown (30%):** 14-day trailing maximum drawdown.
+- **Risk Labels:** Added semantic labels (Very Low to Extreme) to guide user positioning.
+
+### 3. Backend & Bot v2.6 (`backend/main.py`)
+- **Enhanced Telegram Analysis:**
+    - Updated `/price` command to show "Dòng tiền Cá mập" (Big Flow) and "Chỉ số Rủi ro" (Risk Score).
+    - Added shark emoji (🐋/🐳) and warning signs (⚠️) for high-impact visual feedback.
+- **API Data Expansion:** Updated `/api/stock/{symbol}` to return full risk and smart money metrics for frontend consumption.
+
+## Verification
+- Created `test_smart_money.py`: Confirmed correct calculation of big order net flow.
+- Updated `test_new_engine.py`: Verified risk score calculation and label assignment.

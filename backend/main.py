@@ -82,6 +82,7 @@ class StockAnalysisResponse(BaseModel):
 
 def convert_numpy(obj):
     import numpy as np
+    import pandas as pd
     if isinstance(obj, dict):
         return {k: convert_numpy(v) for k, v in obj.items()}
     elif isinstance(obj, list):
@@ -94,6 +95,8 @@ def convert_numpy(obj):
         return float(obj)
     elif isinstance(obj, (np.bool_)):
         return bool(obj)
+    elif isinstance(obj, pd.Timestamp):
+        return obj.isoformat()
     return obj
 
 # --- Global Market Cache ---
@@ -243,23 +246,37 @@ async def tg_price(update: Update, context: ContextTypes.DEFAULT_TYPE):
         pred_vn = {'UPWARD': 'TĂNG', 'DOWNWARD': 'GIẢM', 'SIDEWAYS': 'ĐI NGANG'}.get(metrics.get('prediction_label'), 'ĐI NGANG')
         regime_vn = {'Trending': 'CÓ XU HƯỚNG', 'Weak Trend': 'XU HƯỚNG YẾU', 'Range': 'ĐI NGANG (RANGE)'}.get(metrics.get('market_regime'), 'KHÔNG RÕ')
 
+        # Smart Money Flow
+        big_in = summary.get('Dòng tiền Cá mập vào (VND)', '0')
+        big_out = summary.get('Dòng tiền Cá mập ra (VND)', '0')
+        big_net = summary.get('Dòng tiền Cá mập ròng (VND)', '0')
+
+        # Risk Score
+        risk_score = metrics.get('risk_score', 0)
+        risk_label = metrics.get('risk_label', 'N/A')
+
         text = (
             f"{emoji} *{symbol} - {label_vn}* ({score:+.0f})\n"
             f"━━━━━━━━━━━━━━━━━━\n"
             f"💰 *Giá:* {format_number(metrics.get('current_price_daily'))} VND\n"
             f"📈 *Dự báo (5d):* {pred_vn} ({metrics.get('prediction_5d_pct', 0):+.2f}%)\n"
-            f"🌐 *Thị trường:* {regime_vn} (ADX: {metrics.get('adx', 0):.1f})\n\n"
+            f"🌐 *Thị trường:* {regime_vn} (ADX: {metrics.get('adx', 0):.1f})\n"
+            f"⚠️ *Rủi ro:* {risk_label} ({risk_score}/100)\n\n"
             f"📊 *Điểm thành phần:*\n"
             f"├ Trend: {factors.get('trend', 0):+d}\n"
             f"├ Momentum: {factors.get('momentum', 0):+d}\n"
             f"├ Volume: {factors.get('volume', 0):+d}\n"
             f"├ Volatility: {factors.get('volatility', 0):+d}\n"
             f"└ Mean Rev: {factors.get('mean_reversion', 0):+d}\n\n"
-            f"💧 *Dòng tiền trong ngày:*\n"
+            f"🐋 *Dòng tiền Cá mập (Big Flow):*\n"
+            f"├ Vào: {big_in} VND\n"
+            f"├ Ra: {big_out} VND\n"
+            f"└ Ròng: {big_net} VND\n\n"
+            f"💧 *Dòng tiền Tổng cộng:*\n"
             f"├ Net Flow: {format_number(net_flow)} VND\n"
             f"└ Mua: {buy_vol/1e6:.1f}M | Bán: {sell_vol/1e6:.1f}M\n"
             f"━━━━━━━━━━━━━━━━━━\n"
-            f"BroStock Pro v2.5 Engine 🤖"
+            f"BroStock Pro v2.6 Institutional 🐳"
         )
         await update.message.reply_text(text, parse_mode='Markdown')
         chart_buf = generate_intraday_chart_image(symbol)
@@ -354,7 +371,19 @@ async def update_market_data(force=False):
                 if df is not None and len(df) >= 2:
                     prev, curr = df['close'].iloc[-2], df['close'].iloc[-1]
                     m = calculate_trend_metrics(df)
-                    return {"symbol": symbol, "price": float(curr)*1000, "change": float(curr-prev)*1000, "pct_change": float((curr/prev-1)*100), "volume": int(df['volume'].iloc[-1]), "signal_score": m.get('signal_score', 0), "signal_label": m.get('signal_label', 'Neutral'), "trend_strength": m.get('trend_strength', 0)}
+                    return {
+                        "symbol": symbol, 
+                        "price": float(curr)*1000, 
+                        "change": float(curr-prev)*1000, 
+                        "pct_change": float((curr/prev-1)*100), 
+                        "volume": int(df['volume'].iloc[-1]), 
+                        "signal_score": m.get('signal_score', 0), 
+                        "signal_label": m.get('signal_label', 'Neutral'), 
+                        "trend_strength": m.get('signal_score', 0),
+                        "factors": m.get('factors', {}),
+                        "prediction_5d_pct": m.get('prediction_5d_pct', 0),
+                        "prediction_label": m.get('prediction_label', 'SIDEWAYS')
+                    }
             except: return None
 
         with ThreadPoolExecutor(max_workers=1) as ex:
@@ -446,14 +475,14 @@ async def get_market_scan(): return market_cache.get("scan", {})
 @app.get("/api/market/update")
 async def trigger_market_update():
     asyncio.create_task(update_market_data(force=True))
-    return {"message": "Update triggered"}
+    return {"message": "Đã kích hoạt cập nhật"}
 
 @app.get("/api/stock/{symbol}", response_model=StockAnalysisResponse)
 async def analyze_stock(symbol: str):
     symbol = symbol.upper()
     try:
         raw = get_intraday_data(symbol)
-        if raw is None or raw.empty: raise HTTPException(404, "Not found")
+        if raw is None or raw.empty: raise HTTPException(404, "Không tìm thấy dữ liệu")
         hist = get_stock_history_data(symbol)
         df = preprocess_data(raw)
         resampled = aggregate_data(df)
@@ -471,7 +500,9 @@ async def analyze_stock(symbol: str):
             "intraday_data": convert_numpy(resampled.reset_index().to_dict('records')),
             "historical_data": convert_numpy(hist_df.to_dict('records'))
         }
-    except Exception as e: raise HTTPException(500, str(e))
+    except Exception as e:
+        logger.error(f"Error analyzing stock {symbol}: {e}", exc_info=True)
+        raise HTTPException(500, str(e))
 
 @app.get("/api/portfolio/{user_id}")
 async def fetch_portfolio(user_id: str):

@@ -331,28 +331,48 @@ def calculate_trend_metrics(df):
     elif final_score >= -70: label = 'Sell'
     else: label = 'Strong Sell'
 
-    # Prediction 5d (keep existing logic but refine)
-    y = df['close'].tail(14).values
-    x = np.arange(len(y))
-    slope, intercept = np.polyfit(x, y, 1)
-    pred_price = slope * (len(y) + 5) + intercept
-    if rsi > 70: pred_price *= 0.98
-    elif rsi < 30: pred_price *= 1.02
-    prediction_pct = (pred_price / current_price - 1) * 100
+    # --- Normalize Factors for UI (Scale 0-100) ---
+    def normalize(val, max_val):
+        if max_val == 0: return 50
+        return int(max(0, min(100, (val + max_val) / (2 * max_val) * 100)))
+
+    # Prediction 5d (Conviction-Based Expected Movement)
+    daily_vol_pct = (atr / current_price) * 100 if current_price > 0 else 0
+    expected_move_pct = (final_score / 100.0) * daily_vol_pct * 1.5 
+    
+    # Safety check for slope calculation
+    final_prediction_pct = expected_move_pct
+    if len(df) >= 10:
+        try:
+            y_recent = df['close'].tail(10).values
+            x_recent = np.arange(len(y_recent))
+            slope, _ = np.polyfit(x_recent, y_recent, 1)
+            slope_pct = (slope / current_price) * 100 * 5
+            final_prediction_pct = (expected_move_pct * 0.7) + (slope_pct * 0.3)
+        except: pass
+    
+    # Final Cap to prevent extreme repeated values
+    final_prediction_pct = max(min(final_prediction_pct, 15.0), -15.0)
+
+    # Calculate Risk Score
+    risk_metrics = calculate_risk_score(df)
 
     return {
         'current_price_daily': current_price,
-        'signal_score': final_score,
+        'signal_score': int(final_score),
         'signal_label': label,
         'market_regime': 'Trending' if adx > 25 else 'Weak Trend' if adx > 15 else 'Range',
         'adx': adx,
         'factors': {
-            'trend': trend_score,
-            'momentum': mom_score,
-            'volume': vol_score,
-            'volatility': vlt_score,
-            'mean_reversion': mr_score
+            'trend': normalize(trend_score, 30),
+            'momentum': normalize(mom_score, 20),
+            'volume': normalize(vol_score, 15),
+            'volatility': normalize(vlt_score, 15),
+            'mean_reversion': normalize(mr_score, 20)
         },
+        'risk_score': risk_metrics['risk_score'],
+        'risk_label': risk_metrics['risk_label'],
+        'risk_factors': risk_metrics['factors'],
         'weights': {
             'trend': w_trend,
             'momentum': w_mom,
@@ -361,12 +381,69 @@ def calculate_trend_metrics(df):
             'mean_reversion': w_mr
         },
         'rsi': rsi,
-        'macd_hist': macd_hist.iloc[-1],
+        'macd_hist': float(macd_hist.iloc[-1]) if hasattr(macd_hist, 'iloc') else float(macd_hist),
         'atr': atr,
         'bb_width': bb_width,
         'vol_surge': vol_surge,
-        'prediction_5d_pct': prediction_pct,
-        'prediction_label': 'UPWARD' if prediction_pct > 2 else 'DOWNWARD' if prediction_pct < -2 else 'SIDEWAYS'
+        'prediction_5d_pct': round(final_prediction_pct, 2),
+        'prediction_label': 'UPWARD' if final_prediction_pct > 0.75 else 'DOWNWARD' if final_prediction_pct < -0.75 else 'SIDEWAYS'
+    }
+
+def calculate_risk_score(df):
+    """
+    Calculates a multi-factor Risk Score (0-100).
+    Factors:
+    1. Volatility (ATR/Price) - 40%
+    2. Squeeze/Expansion (BB Width) - 30%
+    3. Drawdown (14d Max Drawdown) - 30%
+    """
+    if df.empty or len(df) < 20:
+        return {'risk_score': 50, 'risk_label': 'Medium', 'factors': {}}
+
+    current_price = df['close'].iloc[-1]
+    
+    # 1. Volatility Factor
+    tr = pd.concat([
+        df['high'] - df['low'],
+        (df['high'] - df['close'].shift(1)).abs(),
+        (df['low'] - df['close'].shift(1)).abs()
+    ], axis=1).max(axis=1)
+    atr_14 = tr.rolling(14).mean().iloc[-1]
+    vol_ratio = (atr_14 / current_price) * 100
+    # Normalize vol_ratio: 1% is low (20 pts), 5% is high (100 pts)
+    vol_score = min(100, max(0, (vol_ratio / 5.0) * 100))
+
+    # 2. BB Width Factor
+    sma_20 = df['close'].tail(20).mean()
+    std_20 = df['close'].tail(20).std()
+    bb_width = (4 * std_20) / sma_20
+    # Normalize bb_width: 0.02 is low (20 pts), 0.15 is high (100 pts)
+    vlt_expansion_score = min(100, max(0, (bb_width / 0.15) * 100))
+
+    # 3. Drawdown Factor (14 days)
+    recent_prices = df['close'].tail(14)
+    rolling_max = recent_prices.cummax()
+    drawdown = (recent_prices - rolling_max) / rolling_max
+    max_dd_14 = abs(drawdown.min()) * 100
+    # Normalize drawdown: 2% is low (20 pts), 15% is high (100 pts)
+    dd_score = min(100, max(0, (max_dd_14 / 15.0) * 100))
+
+    final_risk = (vol_score * 0.4) + (vlt_expansion_score * 0.3) + (dd_score * 0.3)
+    
+    label = 'Low'
+    if final_risk > 75: label = 'Extreme'
+    elif final_risk > 60: label = 'High'
+    elif final_risk > 40: label = 'Medium'
+    elif final_risk < 25: label = 'Very Low'
+
+    return {
+        'risk_score': int(final_risk),
+        'risk_label': label,
+        'factors': {
+            'volatility': int(vol_score),
+            'expansion': int(vlt_expansion_score),
+            'drawdown': int(dd_score)
+        }
     }
 
 # 2. Pre-processing data | Tiền xử lý dữ liệu
@@ -403,6 +480,18 @@ def aggregate_data(df):
     resampled['net_flow'] = resampled['in_flow'] - resampled['out_flow']
     resampled['cum_net_flow'] = resampled['net_flow'].cumsum()
     
+    # --- Smart Money Logic: Big Orders (> 90th percentile) ---
+    threshold = df['volume'].quantile(0.90)
+    big_orders = df[df['volume'] > threshold]
+    
+    big_buy = big_orders[big_orders['match_type'] == 'Buy'].resample('min').agg({'volume': 'sum'})
+    big_sell = big_orders[big_orders['match_type'] == 'Sell'].resample('min').agg({'volume': 'sum'})
+    
+    resampled['big_buy_vol'] = big_buy['volume'].reindex(resampled.index, fill_value=0)
+    resampled['big_sell_vol'] = big_sell['volume'].reindex(resampled.index, fill_value=0)
+    resampled['net_big_flow'] = resampled['big_buy_vol'] - resampled['big_sell_vol']
+    resampled['cum_net_big_flow'] = resampled['net_big_flow'].cumsum()
+    
     # These need re-calculation because they depend on filtering the original DF
     # We can't easily aggregate 'buy_count' directly in the main agg without custom functions or separate resamples
     # So we keep the separate resamples for specific filtered counts
@@ -438,6 +527,9 @@ def calculate_summary(df, resampled):
         'Tổng dòng tiền vào (VND)': format_currency(resampled['in_flow'].sum()),
         'Tổng dòng tiền ra (VND)': format_currency(resampled['out_flow'].sum()),
         'Dòng tiền ròng (VND)': format_currency(resampled['net_flow'].sum()),
+        'Dòng tiền Cá mập vào (VND)': format_currency(resampled['big_buy_vol'].sum() * (df['price'].mean())),
+        'Dòng tiền Cá mập ra (VND)': format_currency(resampled['big_sell_vol'].sum() * (df['price'].mean())),
+        'Dòng tiền Cá mập ròng (VND)': format_currency(resampled['net_big_flow'].sum() * (df['price'].mean())),
         'Tổng số lệnh mua': int(resampled['buy_count'].sum()),
         'Tổng số lệnh bán': int(resampled['sell_count'].sum()),
         'Khối lượng trung bình lệnh mua': resampled['avg_buy_volume'].mean(),
@@ -710,6 +802,7 @@ def generate_intraday_chart_image(symbol):
         # Plot Volume
         colors = ['green' if r['close'] >= r['open'] else 'red' for _, r in resampled.iterrows()]
         ax2.bar(resampled.index, resampled['volume'], color=colors, alpha=0.8)
+        ax2.set_ylabel('Khối lượng', fontsize=10, color='gray')
         ax2.grid(alpha=0.2)
         
         plt.xticks(rotation=0)
