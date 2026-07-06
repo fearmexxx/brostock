@@ -40,6 +40,7 @@ export default function RootLayout({
                         <div className="flex items-baseline space-x-4">
                             <Link href="/" className="hover:bg-blue-700 px-3 py-2 rounded-md text-sm font-medium">Bảng điều khiển</Link>
                             <Link href="/market" className="hover:bg-blue-700 px-3 py-2 rounded-md text-sm font-medium">Thị trường</Link>
+                            <Link href="/alpha" className="hover:bg-blue-700 px-3 py-2 rounded-md text-sm font-medium text-amber-300 font-bold">Alpha</Link>
                             <Link href="/portfolio" className="hover:bg-blue-700 px-3 py-2 rounded-md text-sm font-medium">Danh mục</Link>
                             <Link href="/backtest" className="hover:bg-blue-700 px-3 py-2 rounded-md text-sm font-medium">Kiểm thử</Link>
                         </div>

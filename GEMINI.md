@@ -61,4 +61,9 @@
 - **Telegram Bot:** Upgraded to show shark emojis (🐋/🐳) and detailed factor analysis under the `/price` command.
 - **Data Cache:** Validated SQLite caching behavior with 5-minute TTL to maintain smooth API rates.
 
+### July 6, 2026: BroStock Alpha Section Deployed
+- **Alpha Core:** Created the `/api/market/alpha` endpoint which aggregates stock listings, calculates daily institutional signal scores, filters by liquidity, and ranks the top 100 opportunities.
+- **Alpha Dashboard:** Implemented a new `/alpha` Next.js screen featuring a full-width interactive table of the ranked universe with live search, action-based filters (BUY/SELL/HOLD), and 5-day outlook previews.
+- **Runtime:** Resolved python import issues by pinning local execution environment to Python 3.11.8.
+
 

@@ -105,6 +105,7 @@ market_cache = {
     "top10": {"gainers": [], "losers": [], "volume": []},
     "signals": {"bullish": [], "bearish": []},
     "scan": {},
+    "alpha": [],
     "last_updated": None
 }
 
@@ -126,6 +127,9 @@ def load_cache_from_db():
 
     stats, _ = get_market_cache("market_stats")
     if stats: market_cache["market_stats"] = stats
+
+    alpha, _ = get_market_cache("alpha")
+    if alpha: market_cache["alpha"] = alpha
 
     if market_cache["last_updated"]:
         print(f"Loaded market cache from DB. Last updated: {market_cache['last_updated']}")
@@ -403,12 +407,19 @@ async def update_market_data(force=False):
             
             bull = df_all[df_all['signal_score'] >= 15].sort_values(["signal_score", "trend_strength"], ascending=[False, False]).head(15)
             bear = df_all[df_all['signal_score'] <= -15].sort_values(["signal_score", "trend_strength"], ascending=[True, True]).head(15)
+
             market_cache["signals"] = {"bullish": convert_numpy(bull.to_dict('records')), "bearish": convert_numpy(bear.to_dict('records'))}
             save_market_cache("signals", market_cache["signals"])
             
             scan = {r['symbol']: {"score": float(r['signal_score']), "action": "BUY" if r['signal_score'] >= 40 else "SELL" if r['signal_score'] <= -40 else "NEUTRAL", "price": float(r['price']), "pct_change": float(r['pct_change'])} for r in valid_data}
             market_cache["scan"] = scan
             save_market_cache("scan", scan)
+
+            alpha_list = sorted(valid_data, key=lambda x: x['volume'], reverse=True)[:100]
+            for item in alpha_list:
+                item['action'] = "BUY" if item['signal_score'] >= 40 else "SELL" if item['signal_score'] <= -40 else "HOLD"
+            market_cache["alpha"] = convert_numpy(alpha_list)
+            save_market_cache("alpha", market_cache["alpha"])
 
             # 3. Market Breadth & Liquidity
             advancing = len(df_all[df_all['pct_change'] > 0])
@@ -487,6 +498,9 @@ async def get_market_overview(): return market_cache
 
 @app.get("/api/market/scan")
 async def get_market_scan(): return market_cache.get("scan", {})
+
+@app.get("/api/market/alpha")
+async def get_market_alpha(): return market_cache.get("alpha", [])
 
 @app.get("/api/market/update")
 async def trigger_market_update():
