@@ -14,6 +14,8 @@ interface StockData {
       signal_label: string
       market_regime: string
       adx: number
+      liquidity_status?: string
+      avg_vol_20?: number
       factors: {
           trend: number
           momentum: number
@@ -377,10 +379,24 @@ export function DashboardClient({ data }: { data: StockData | null }) {
                                     {stock.trend_metrics.signal_label}
                                 </div>
                             </div>
-                            <div className="text-right">
-                                <p className="text-[10px] text-blue-300 uppercase font-bold">Thị trường</p>
-                                <p className="text-sm font-black text-blue-100">{stock.trend_metrics.market_regime}</p>
-                                <p className="text-[9px] text-blue-400 font-mono">ADX: {stock.trend_metrics.adx?.toFixed(1)}</p>
+                            <div className="text-right flex flex-col items-end">
+                                <div>
+                                    <p className="text-[10px] text-blue-300 uppercase font-bold">Thị trường</p>
+                                    <p className="text-sm font-black text-blue-100">{stock.trend_metrics.market_regime}</p>
+                                    <p className="text-[9px] text-blue-400 font-mono">ADX: {stock.trend_metrics.adx?.toFixed(1)}</p>
+                                </div>
+                                {stock.trend_metrics.liquidity_status && (
+                                    <div className="mt-2">
+                                        <p className="text-[9px] text-blue-300 uppercase font-bold">Thanh khoản</p>
+                                        <span className={`px-1.5 py-0.5 rounded-[3px] text-[8px] font-bold uppercase inline-block ${
+                                            stock.trend_metrics.liquidity_status === 'Very Low' ? 'bg-red-500 text-white' :
+                                            stock.trend_metrics.liquidity_status === 'Low' ? 'bg-yellow-500 text-black' : 'bg-green-500 text-white'
+                                        }`}>
+                                            {stock.trend_metrics.liquidity_status === 'Very Low' ? 'RẤT THẤP' :
+                                             stock.trend_metrics.liquidity_status === 'Low' ? 'THẤP' : 'ỔN ĐỊNH'}
+                                        </span>
+                                    </div>
+                                )}
                             </div>
                         </div>
 

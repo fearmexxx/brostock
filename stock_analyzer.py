@@ -357,12 +357,23 @@ def calculate_trend_metrics(df):
     # Calculate Risk Score
     risk_metrics = calculate_risk_score(df)
 
+    # Liquidity Filter (Vietnam-Specific)
+    avg_vol_20 = df['volume'].tail(20).mean() if len(df) >= 20 else df['volume'].mean()
+    if avg_vol_20 < 100000:
+        liquidity_status = "Very Low"
+    elif avg_vol_20 < 500000:
+        liquidity_status = "Low"
+    else:
+        liquidity_status = "Adequate"
+
     return {
         'current_price_daily': current_price,
         'signal_score': int(final_score),
         'signal_label': label,
         'market_regime': 'Trending' if adx > 25 else 'Weak Trend' if adx > 15 else 'Range',
         'adx': adx,
+        'liquidity_status': liquidity_status,
+        'avg_vol_20': float(avg_vol_20) if pd.notnull(avg_vol_20) else 0.0,
         'factors': {
             'trend': normalize(trend_score, 30),
             'momentum': normalize(mom_score, 20),

@@ -33,79 +33,32 @@
     - Built-in engine to test strategies on historical data (2020-Present).
     - Visualizes Equity Curve, Drawdown, and Win Rate.
 
-## Algorithm: BroStock v2.0
-**Goal:** Trend Following + Momentum.
-**Scoring Scale:** -10 (Strong Bearish) to +10 (Strong Bullish).
+## Algorithm: BroStock Institutional v2.6
+**Goal:** Multi-Factor Trend Following, Momentum, and Risk Management.
+**Scoring Scale:** -100 (Strong Bearish/Sell) to +100 (Strong Bullish/Buy).
 
-### Logic:
-1.  **Trend (4 pts):** Price vs SMA50, Trend Strength % (Deviation from SMA50).
-2.  **Momentum (3 pts):** Price vs SMA20, 7-Day Return.
-3.  **Volume (3 pts):** Volume Surge (>1.2x avg), Price/Vol divergence.
+### Factor Weights (Default):
+1.  **Trend (30%):** Based on SMA20/50/200 positions and crossovers.
+2.  **Momentum (20%):** Derived from RSI (14), MACD, and 14-day Rate of Change (ROC).
+3.  **Volume Flow (15%):** Volume surge (7d vs 20d) and On-Balance Volume (OBV) trend.
+4.  **Volatility Regime (15%):** Volatility expansion (ATR) and Bollinger Band width/squeeze.
+5.  **Mean Reversion (20%):** Bollinger Band extremes and extreme RSI levels.
 
-### Performance (Backtested Jan 2023 - Jan 2026):
-- **Avg Return (VN30):** ~51.3%
-- **Avg Win Rate:** ~28% (Strategy cuts losers fast, rides winners).
-- **Notable Wins:** VIC (+517%), VHM (+158%).
+### Dynamic Weighting (Regime Detection):
+- **ADX > 25 (Strong Trend):** Trend weight increases to 40%, Mean Reversion decreases to 10%.
+- **ADX < 15 (Range/Mean Reversion):** Trend weight decreases to 15%, Mean Reversion increases to 35%.
 
-## Deployment Guide
-- **Backend:** Deploy to **Render** or **Railway** (requires persistent disk for SQLite).
-- **Frontend:** Deploy to **Vercel**.
-- **Environment:**
-  - Frontend: Set `NEXT_PUBLIC_API_URL` to your Backend URL.
-  - Backend: Ensure `market_data.db` is persistent.
+### Additional Advanced Metrics:
+1.  **Smart Money (Shark) Flow:** Identifies "Big Orders" using the 90th percentile of tick transaction volume. Computes net shark volume (`big_buy_vol` - `big_sell_vol`) and accumulates cumulative flows.
+2.  **Multi-Factor Risk Score (0-100):** Consists of Volatility (40% weight on ATR/price), Squeeze/Expansion (30% weight on BB width), and Drawdown (30% weight on trailing 14-day max drawdown).
 
-## Recent Updates (Jan 2026)
+## Working Log & Updates
 
-- **Rate Limit Fix:** Implemented "Market Closed" logic (no API calls after 3 PM) and graceful fallbacks. 
-
-- **Refactor:** Moved Portfolio from Backend DB to Client-side Storage.
-
-- **New Feature:** Added `/backtest` page for user-driven strategy simulations.
-
-
-
-## Working Log
-
-### Feb 6, 2026: Preparation for Phase 4
-
-- **Status Check:** Confirmed Backend (FastAPI) and Frontend (Next.js) are stable. 
-
-- **Signal Engine:** Verified `calculate_trend_metrics` is providing consistent scores (-10 to +10).
-
-- **Database:** SQLite `market_data.db` is successfully caching indices, top rankings, and full market scan results.
-
-- **Next Goal:** Implement Telegram Bot to reduce API load and provide automated reports.
-
-
-
-## Phase 4: Telegram Bot Integration
-
-**Goal:** Offload routine queries and provide automated EOD signal reports.
-
-
-
-### Planned Features:
-
-1.  **Market Query:** `/price [SYMBOL]` - Get real-time price, change, and BroStock Signal.
-
-2.  **Top Lists:** `/top` - View top gainers/losers and volume leaders.
-
-3.  **Daily Report:** Automated message at 4:00 PM GMT+7 with:
-
-    - Market Indices performance (VNIndex, VN30).
-
-    - Top 5 Bullish & Bearish signals of the day.
-
-    - Market Sentiment summary.
-
-4.  **Portfolio Alerts:** (Future) Integration with user-specific watchlists.
-
-
-
-### Technical Stack:
-
-- **Library:** `python-telegram-bot` (Asynchronous).
-
-- **Deployment:** Integrated into the existing FastAPI backend or as a separate service sharing the same `market_data.db`.
+### April 14, 2026: Institutional Upgrade v2.6 Completed
+- **Signal Engine:** Integrated multi-factor conviction scoring, ADX-based regime weighting, and risk scores.
+- **Smart Money Flow:** Extracted tick-level shark activity and integrated it into the analysis pipelines.
+- **Dashboard UI:** Added HUD widgets for Conviction factor breakdowns, Risk Architecture (ATR, BB, MDD), and 5-day conviction-based outlook.
+- **Telegram Bot:** Upgraded to show shark emojis (🐋/🐳) and detailed factor analysis under the `/price` command.
+- **Data Cache:** Validated SQLite caching behavior with 5-minute TTL to maintain smooth API rates.
 
 
