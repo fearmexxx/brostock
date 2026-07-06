@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { ArrowUp, ArrowDown, Award, TrendingUp, BarChart3, Search } from "lucide-react"
+import { ArrowUp, ArrowDown, Award, BarChart3, Search, ChevronUp, ChevronDown } from "lucide-react"
 import Link from "next/link"
 
 interface AlphaStock {
@@ -15,15 +15,25 @@ interface AlphaStock {
   signal_label: string;
   prediction_5d_pct: number;
   prediction_label: string;
-  action: "BUY" | "SELL" | "HOLD";
+  action: string;
+  target_price: number;
+  target_pct: number;
+  stop_loss: number;
+  stop_loss_pct: number;
+  risk_reward_ratio: number;
+  risk_score: number;
+  risk_label: string;
+  alpha_rank_score: number;
 }
+
+type SortField = "volume" | "conviction" | "outlook" | "rr_ratio"
 
 export default function AlphaPage() {
   const [stocks, setStocks] = useState<AlphaStock[]>([])
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState("")
-  const [filterAction, setFilterAction] = useState<"ALL" | "BUY" | "SELL" | "HOLD">("ALL")
-  const [sortBy, setSortBy] = useState<"volume" | "conviction" | "outlook">("volume")
+  const [filterAction, setFilterAction] = useState<string>("ALL")
+  const [sortBy, setSortBy] = useState<SortField>("conviction")
   const [sortOrder, setSortOrder] = useState<"desc" | "asc">("desc")
 
   const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
@@ -46,7 +56,7 @@ export default function AlphaPage() {
     return () => clearInterval(interval)
   }, [fetchAlphaData])
 
-  const handleSort = (field: "volume" | "conviction" | "outlook") => {
+  const handleSort = (field: SortField) => {
     if (sortBy === field) {
       setSortOrder(sortOrder === "asc" ? "desc" : "asc")
     } else {
@@ -55,29 +65,60 @@ export default function AlphaPage() {
     }
   }
 
+  const SortIcon = ({ field }: { field: SortField }) => {
+    if (sortBy !== field) return null
+    return sortOrder === "desc" ? <ChevronDown size={12} /> : <ChevronUp size={12} />
+  }
+
   // Filter and Search Logic
   const filteredStocks = stocks.filter(s => {
     const matchesSearch = s.symbol.toLowerCase().includes(searchQuery.toLowerCase())
-    const matchesFilter = filterAction === "ALL" || s.action === filterAction
+    let matchesFilter = filterAction === "ALL"
+    if (filterAction === "BUY") matchesFilter = s.action === "BUY" || s.action === "STRONG BUY"
+    else if (filterAction === "SELL") matchesFilter = s.action === "SELL" || s.action === "STRONG SELL"
+    else if (filterAction === "HOLD") matchesFilter = s.action === "HOLD"
+    else if (filterAction === "ALERT") matchesFilter = s.action === "CẢNH BÁO"
+    else matchesFilter = true
     return matchesSearch && matchesFilter
   })
 
   // Sorting Logic
   const sortedStocks = [...filteredStocks].sort((a, b) => {
-    let valA = 0
-    let valB = 0
-    if (sortBy === "volume") {
-      valA = a.volume
-      valB = b.volume
-    } else if (sortBy === "conviction") {
-      valA = a.signal_score
-      valB = b.signal_score
-    } else if (sortBy === "outlook") {
-      valA = a.prediction_5d_pct
-      valB = b.prediction_5d_pct
-    }
+    let valA = 0, valB = 0
+    if (sortBy === "volume") { valA = a.volume; valB = b.volume }
+    else if (sortBy === "conviction") { valA = a.signal_score; valB = b.signal_score }
+    else if (sortBy === "outlook") { valA = a.prediction_5d_pct; valB = b.prediction_5d_pct }
+    else if (sortBy === "rr_ratio") { valA = a.risk_reward_ratio; valB = b.risk_reward_ratio }
     return sortOrder === "asc" ? valA - valB : valB - valA
   })
+
+  const getActionBadge = (action: string) => {
+    switch (action) {
+      case "STRONG BUY": return "bg-green-700 text-white ring-2 ring-green-400/50"
+      case "BUY": return "bg-green-600 text-white"
+      case "STRONG SELL": return "bg-red-700 text-white ring-2 ring-red-400/50"
+      case "SELL": return "bg-red-600 text-white"
+      case "CẢNH BÁO": return "bg-amber-500 text-black"
+      default: return "bg-gray-100 text-gray-600"
+    }
+  }
+
+  const getActionLabel = (action: string) => {
+    switch (action) {
+      case "STRONG BUY": return "MUA MẠNH"
+      case "BUY": return "MUA"
+      case "STRONG SELL": return "BÁN MẠNH"
+      case "SELL": return "BÁN"
+      case "CẢNH BÁO": return "CẢNH BÁO"
+      default: return "NẮM GIỮ"
+    }
+  }
+
+  const getRRColor = (rr: number) => {
+    if (rr >= 2) return "text-green-600 font-black"
+    if (rr >= 1) return "text-amber-600 font-bold"
+    return "text-red-500 font-medium"
+  }
 
   if (loading) {
     return (
@@ -89,27 +130,25 @@ export default function AlphaPage() {
 
   return (
     <div className="min-h-screen bg-gray-50 text-gray-900 p-4 md:p-8">
-      <div className="max-w-7xl mx-auto space-y-8">
+      <div className="max-w-[1600px] mx-auto space-y-6">
         
-        {/* Header HUD */}
+        {/* Header */}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4 border-b border-gray-200 pb-6">
           <div>
             <div className="flex items-center gap-2">
               <Award className="text-amber-500" size={28} />
-              <h1 className="text-3xl font-black text-gray-900 tracking-wider">BROSTOCK ALPHA</h1>
+              <h1 className="text-3xl font-black text-gray-900 tracking-wider">BROSTOCK ALPHA v2.0</h1>
             </div>
-            <p className="text-gray-500 mt-1">Hệ thống xếp hạng Top 100 cổ phiếu hàng đầu theo Thanh khoản & Vốn hóa kèm Tín hiệu Giao dịch Tự động</p>
+            <p className="text-gray-500 mt-1">Hệ thống xếp hạng tổng hợp Top 100 — Tín hiệu Swing Trading mục tiêu 6-10%/tháng</p>
           </div>
           <div className="text-left md:text-right text-[11px] text-gray-400 font-mono">
-            {stocks.length > 0 && (
-              <p>Hệ thống tự động cập nhật mỗi 60 giây</p>
-            )}
+            <p>Composite Rank = Signal (40%) + Volume (30%) + R:R (30%)</p>
+            {stocks.length > 0 && <p>Cập nhật tự động mỗi 60 giây</p>}
           </div>
         </div>
 
-        {/* Action Controls HUD */}
+        {/* Controls */}
         <div className="flex flex-col md:flex-row justify-between gap-4 items-center bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
-          {/* Search Box */}
           <div className="relative w-full md:w-80">
             <span className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400">
               <Search size={16} />
@@ -122,128 +161,139 @@ export default function AlphaPage() {
               onChange={(e) => setSearchQuery(e.target.value)}
             />
           </div>
-
-          {/* Quick Filters */}
           <div className="flex gap-2 w-full md:w-auto overflow-x-auto">
-            {(["ALL", "BUY", "SELL", "HOLD"] as const).map(act => (
+            {[
+              { key: "ALL", label: "TẤT CẢ" },
+              { key: "BUY", label: "MUA" },
+              { key: "SELL", label: "BÁN" },
+              { key: "HOLD", label: "NẮM GIỮ" },
+              { key: "ALERT", label: "CẢNH BÁO" },
+            ].map(f => (
               <button
-                key={act}
-                onClick={() => setFilterAction(act)}
+                key={f.key}
+                onClick={() => setFilterAction(f.key)}
                 className={`px-4 py-1.5 rounded text-xs font-bold uppercase transition ${
-                  filterAction === act
+                  filterAction === f.key
                     ? "bg-[#1e3a8a] text-white shadow-md"
                     : "bg-white text-gray-600 border border-gray-200 hover:bg-gray-50 shadow-sm"
                 }`}
               >
-                {act === "ALL" ? "TẤT CẢ" : act === "BUY" ? "MUA" : act === "SELL" ? "BÁN" : "NẮM GIỮ"}
+                {f.label}
               </button>
             ))}
           </div>
         </div>
 
-        {/* Alpha List Card */}
+        {/* Table Card */}
         <Card className="bg-white border-gray-200 overflow-hidden shadow-sm">
-          <CardHeader className="bg-gray-50 border-b border-gray-200 py-4">
+          <CardHeader className="bg-gray-50 border-b border-gray-200 py-3">
             <div className="flex justify-between items-center">
               <CardTitle className="text-md font-bold text-gray-800 flex items-center gap-2">
                 <BarChart3 size={18} className="text-blue-600" />
-                Bảng tín hiệu ALPHA xếp hạng thanh khoản hàng đầu
+                Bảng tín hiệu ALPHA v2.0 — Xếp hạng tổng hợp
               </CardTitle>
-              <span className="text-xs text-gray-500 font-mono">Hiển thị {filteredStocks.length} trên 100 mã</span>
+              <span className="text-xs text-gray-500 font-mono">Hiển thị {filteredStocks.length} / {stocks.length} mã</span>
             </div>
           </CardHeader>
           <CardContent className="p-0 overflow-x-auto">
             {filteredStocks.length === 0 ? (
               <div className="p-12 text-center text-gray-500">
-                Không tìm thấy mã cổ phiếu nào phù hợp với bộ lọc hiện tại.
+                Không tìm thấy mã cổ phiếu nào phù hợp.
               </div>
             ) : (
               <table className="w-full text-sm text-left border-collapse text-gray-700">
-                <thead className="bg-gray-50 text-gray-500 uppercase text-[10px] font-bold tracking-wider border-b border-gray-200">
+                <thead className="bg-gray-50 text-gray-500 uppercase text-[10px] font-bold tracking-wider border-b border-gray-200 sticky top-0">
                   <tr>
-                    <th className="px-6 py-3.5 text-center w-12">Hạng</th>
-                    <th className="px-6 py-3.5">Mã</th>
-                    <th className="px-6 py-3.5 text-right">Giá (VND)</th>
-                    <th className="px-6 py-3.5 text-right">Thay đổi</th>
+                    <th className="px-3 py-3 text-center w-10">#</th>
+                    <th className="px-3 py-3">Mã</th>
+                    <th className="px-3 py-3 text-right">Giá</th>
+                    <th className="px-3 py-3 text-right">%</th>
                     <th 
-                      className="px-6 py-3.5 text-right cursor-pointer hover:text-gray-900 transition select-none"
+                      className="px-3 py-3 text-right cursor-pointer hover:text-gray-900 transition select-none"
                       onClick={() => handleSort("volume")}
                     >
-                      <div className="flex items-center justify-end gap-1">
-                        Khối lượng
-                        {sortBy === "volume" && (sortOrder === "desc" ? <ArrowDown size={12} /> : <ArrowUp size={12} />)}
-                      </div>
+                      <div className="flex items-center justify-end gap-1">KL <SortIcon field="volume" /></div>
                     </th>
                     <th 
-                      className="px-6 py-3.5 text-center cursor-pointer hover:text-gray-900 transition select-none"
+                      className="px-3 py-3 text-center cursor-pointer hover:text-gray-900 transition select-none"
                       onClick={() => handleSort("conviction")}
                     >
-                      <div className="flex items-center justify-center gap-1">
-                        Điểm Conviction
-                        {sortBy === "conviction" && (sortOrder === "desc" ? <ArrowDown size={12} /> : <ArrowUp size={12} />)}
-                      </div>
+                      <div className="flex items-center justify-center gap-1">Conviction <SortIcon field="conviction" /></div>
                     </th>
-                    <th className="px-6 py-3.5 text-center">Khuyến nghị</th>
+                    <th className="px-3 py-3 text-center">Khuyến nghị</th>
+                    <th className="px-3 py-3 text-right text-green-700">Mục tiêu</th>
+                    <th className="px-3 py-3 text-right text-red-700">Cắt lỗ</th>
                     <th 
-                      className="px-6 py-3.5 text-center cursor-pointer hover:text-gray-900 transition select-none"
+                      className="px-3 py-3 text-center cursor-pointer hover:text-gray-900 transition select-none"
+                      onClick={() => handleSort("rr_ratio")}
+                    >
+                      <div className="flex items-center justify-center gap-1">R:R <SortIcon field="rr_ratio" /></div>
+                    </th>
+                    <th 
+                      className="px-3 py-3 text-center cursor-pointer hover:text-gray-900 transition select-none"
                       onClick={() => handleSort("outlook")}
                     >
-                      <div className="flex items-center justify-center gap-1">
-                        Triển vọng 5D
-                        {sortBy === "outlook" && (sortOrder === "desc" ? <ArrowDown size={12} /> : <ArrowUp size={12} />)}
-                      </div>
+                      <div className="flex items-center justify-center gap-1">5D <SortIcon field="outlook" /></div>
                     </th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-150">
+                <tbody className="divide-y divide-gray-100">
                   {sortedStocks.map((s, index) => (
-                    <tr key={s.symbol} className="hover:bg-gray-50 transition duration-150">
-                      <td className="px-6 py-4 text-center font-mono text-xs text-gray-450">
+                    <tr key={s.symbol} className="hover:bg-blue-50/50 transition duration-100">
+                      <td className="px-3 py-3 text-center font-mono text-xs text-gray-400">
                         {index + 1}
                       </td>
-                      <td className="px-6 py-4">
-                        <Link href={`/?symbol=${s.symbol}`} className="font-extrabold text-blue-900 hover:underline text-md tracking-wider">
+                      <td className="px-3 py-3">
+                        <Link href={`/?symbol=${s.symbol}`} className="font-extrabold text-blue-900 hover:underline tracking-wider">
                           {s.symbol}
                         </Link>
                       </td>
-                      <td className="px-6 py-4 text-right font-semibold font-mono text-gray-900">
+                      <td className="px-3 py-3 text-right font-semibold font-mono text-gray-900 text-xs">
                         {s.price.toLocaleString()}
                       </td>
-                      <td className="px-6 py-4 text-right font-mono">
-                        <div className={`flex items-center justify-end gap-1 font-bold ${
-                          s.pct_change >= 0 ? "text-green-600" : "text-red-600"
+                      <td className="px-3 py-3 text-right font-mono text-xs">
+                        <span className={`font-bold ${s.pct_change >= 0 ? "text-green-600" : "text-red-600"}`}>
+                          {s.pct_change >= 0 ? "+" : ""}{s.pct_change.toFixed(2)}%
+                        </span>
+                      </td>
+                      <td className="px-3 py-3 text-right font-mono font-medium text-gray-500 text-xs">
+                        {(s.volume / 1000000).toFixed(1)}M
+                      </td>
+                      <td className="px-3 py-3 text-center">
+                        <div className={`inline-block px-2 py-0.5 rounded font-mono font-bold text-xs ${
+                          s.signal_score >= 25 ? "bg-green-100 text-green-800" :
+                          s.signal_score <= -25 ? "bg-red-100 text-red-800" :
+                          "bg-gray-100 text-gray-600"
                         }`}>
-                          {s.pct_change >= 0 ? <ArrowUp size={12} /> : <ArrowDown size={12} />}
-                          <span>{s.pct_change >= 0 ? "+" : ""}{s.pct_change.toFixed(2)}%</span>
-                        </div>
-                        <div className="text-[10px] text-gray-400">
-                          {s.change >= 0 ? "+" : ""}{s.change.toLocaleString()}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 text-right font-mono font-medium text-gray-650">
-                        {(s.volume / 1000000).toFixed(2)}M
-                      </td>
-                      <td className="px-6 py-4 text-center">
-                        <div className="inline-block px-2 py-0.5 rounded font-mono font-bold text-xs bg-gray-100 text-gray-700">
                           {s.signal_score > 0 ? "+" : ""}{s.signal_score}
                         </div>
                       </td>
-                      <td className="px-6 py-4 text-center">
-                        <span className={`px-2.5 py-1 rounded text-xs font-black uppercase inline-block shadow-sm tracking-wide ${
-                          s.action === "BUY" ? "bg-green-600 text-white" :
-                          s.action === "SELL" ? "bg-red-600 text-white" : "bg-gray-100 text-gray-600"
-                        }`}>
-                          {s.action === "BUY" ? "MUA" : s.action === "SELL" ? "BÁN" : "NẮM GIỮ"}
+                      <td className="px-3 py-3 text-center">
+                        <span className={`px-2 py-1 rounded text-[10px] font-black uppercase inline-block shadow-sm tracking-wide ${getActionBadge(s.action)}`}>
+                          {getActionLabel(s.action)}
                         </span>
                       </td>
-                      <td className="px-6 py-4 text-center">
+                      <td className="px-3 py-3 text-right font-mono text-xs">
+                        <div className="text-green-700 font-bold">{(s.target_price * 1000).toLocaleString()}</div>
+                        <div className="text-[9px] text-green-500">+{s.target_pct}%</div>
+                      </td>
+                      <td className="px-3 py-3 text-right font-mono text-xs">
+                        <div className="text-red-600 font-bold">{(s.stop_loss * 1000).toLocaleString()}</div>
+                        <div className="text-[9px] text-red-400">{s.stop_loss_pct}%</div>
+                      </td>
+                      <td className="px-3 py-3 text-center">
+                        <span className={`font-mono text-xs ${getRRColor(s.risk_reward_ratio)}`}>
+                          {s.risk_reward_ratio.toFixed(1)}:1
+                        </span>
+                      </td>
+                      <td className="px-3 py-3 text-center">
                         <div className={`font-bold font-mono text-xs ${
                           s.prediction_5d_pct >= 0 ? "text-green-600" : "text-red-600"
                         }`}>
                           {s.prediction_5d_pct >= 0 ? "+" : ""}{s.prediction_5d_pct.toFixed(2)}%
                         </div>
-                        <div className="text-[9px] uppercase tracking-wider text-gray-400">
-                          {s.prediction_label === "UPWARD" ? "TĂNG" : s.prediction_label === "DOWNWARD" ? "GIẢM" : "ĐI NGANG"}
+                        <div className="text-[8px] uppercase tracking-wider text-gray-400">
+                          {s.prediction_label === "UPWARD" ? "TĂNG" : s.prediction_label === "DOWNWARD" ? "GIẢM" : "NGANG"}
                         </div>
                       </td>
                     </tr>

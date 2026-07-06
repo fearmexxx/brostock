@@ -237,11 +237,13 @@ def calculate_trend_metrics(df):
     
     mom_score = 0
     if 50 <= rsi <= 70: mom_score += 5
-    elif rsi > 70: mom_score -= 5
+    elif rsi > 70: mom_score -= 8  # Symmetric with RSI<30 bonus
     elif rsi < 30: mom_score += 8
     
     if macd_line.iloc[-1] > signal_line.iloc[-1]: mom_score += 5
+    else: mom_score -= 5  # Bearish crossover penalty (symmetric)
     if macd_hist.iloc[-1] > macd_hist.iloc[-2]: mom_score += 3
+    elif macd_hist.iloc[-1] < macd_hist.iloc[-2]: mom_score -= 3  # Histogram contracting
     if roc_14 > 5: mom_score += 4
     elif roc_14 < -5: mom_score -= 4
     
@@ -253,14 +255,21 @@ def calculate_trend_metrics(df):
     
     # OBV
     obv = (np.sign(df['close'].diff()) * df['volume']).fillna(0).cumsum()
-    obv_trend = 4 if obv.iloc[-1] > obv.tail(10).mean() else -4
+    obv_trend = 8 if obv.iloc[-1] > obv.tail(10).mean() else -8  # Enhanced OBV impact
     
     vol_score = 0
     if vol_surge > 2: vol_score += 8
     elif vol_surge > 1.5: vol_score += 6
+    elif vol_surge < 0.5: vol_score -= 6  # Volume drought detection
     vol_score += obv_trend
-    if current_price > (df['close'] * df['volume']).tail(20).sum() / df['volume'].tail(20).sum(): # Proxy VWAP
+    # Selling pressure: price drops + volume surges
+    price_drop = df['close'].iloc[-1] < df['close'].iloc[-2]
+    if price_drop and vol_surge > 1.5: vol_score -= 8  # Distribution detected
+    vwap_proxy = (df['close'] * df['volume']).tail(20).sum() / df['volume'].tail(20).sum()
+    if current_price > vwap_proxy:
         vol_score += 3
+    else:
+        vol_score -= 3  # Below VWAP is bearish
         
     # 4. Volatility Regime (15%) - Target: +/- 15
     # ATR
@@ -290,7 +299,7 @@ def calculate_trend_metrics(df):
     if current_price < lower_bb: mr_score += 10
     if rsi < 30: mr_score += 6
     if current_price > upper_bb: mr_score -= 10
-    if rsi > 75: mr_score -= 6
+    if rsi > 70: mr_score -= 6  # Symmetric with RSI<30 (was 75)
     
     # --- Market Regime Detection (ADX) ---
     # Simplified ADX
@@ -323,12 +332,12 @@ def calculate_trend_metrics(df):
     final_score = max(min(raw_score * 4, 100), -100) 
     
     # Labels
-    if final_score >= 70: label = 'Strong Buy'
-    elif final_score >= 40: label = 'Buy'
-    elif final_score >= 15: label = 'Bullish Bias'
-    elif final_score > -15: label = 'Neutral'
-    elif final_score >= -40: label = 'Bearish Bias'
-    elif final_score >= -70: label = 'Sell'
+    if final_score >= 60: label = 'Strong Buy'
+    elif final_score >= 25: label = 'Buy'
+    elif final_score >= 10: label = 'Bullish Bias'
+    elif final_score > -10: label = 'Neutral'
+    elif final_score >= -25: label = 'Bearish Bias'
+    elif final_score >= -60: label = 'Sell'
     else: label = 'Strong Sell'
 
     # --- Normalize Factors for UI (Scale 0-100) ---
@@ -353,6 +362,31 @@ def calculate_trend_metrics(df):
     
     # Final Cap to prevent extreme repeated values
     final_prediction_pct = max(min(final_prediction_pct, 15.0), -15.0)
+
+    # --- Target Price & Stop Loss (Swing Trading) ---
+    atr_value = float(atr) if pd.notnull(atr) else 0
+    # Target: ATR × 2 above current price, capped at upper BB
+    target_by_atr = current_price + (atr_value * 2)
+    target_price = min(target_by_atr, float(upper_bb)) if final_score > 0 else max(current_price - (atr_value * 2), float(lower_bb))
+    # For BUY signals: target is above, stop is below
+    # For SELL signals: target is below, stop is above
+    if final_score >= 0:
+        target_price = current_price + (atr_value * 2)
+        stop_loss = current_price - (atr_value * 1.5)
+        # Cap stop-loss at -5% max
+        stop_loss = max(stop_loss, current_price * 0.95)
+    else:
+        target_price = current_price - (atr_value * 2)
+        stop_loss = current_price + (atr_value * 1.5)
+        stop_loss = min(stop_loss, current_price * 1.05)
+    
+    target_pct = round(((target_price / current_price) - 1) * 100, 2) if current_price > 0 else 0
+    stop_loss_pct = round(((stop_loss / current_price) - 1) * 100, 2) if current_price > 0 else 0
+    
+    # Risk:Reward Ratio
+    reward = abs(target_price - current_price)
+    risk = abs(current_price - stop_loss)
+    risk_reward_ratio = round(reward / risk, 2) if risk > 0 else 0
 
     # Calculate Risk Score
     risk_metrics = calculate_risk_score(df)
@@ -397,7 +431,12 @@ def calculate_trend_metrics(df):
         'bb_width': bb_width,
         'vol_surge': vol_surge,
         'prediction_5d_pct': round(final_prediction_pct, 2),
-        'prediction_label': 'UPWARD' if final_prediction_pct > 0.75 else 'DOWNWARD' if final_prediction_pct < -0.75 else 'SIDEWAYS'
+        'prediction_label': 'UPWARD' if final_prediction_pct > 0.75 else 'DOWNWARD' if final_prediction_pct < -0.75 else 'SIDEWAYS',
+        'target_price': round(target_price, 2),
+        'target_pct': target_pct,
+        'stop_loss': round(stop_loss, 2),
+        'stop_loss_pct': stop_loss_pct,
+        'risk_reward_ratio': risk_reward_ratio
     }
 
 def calculate_risk_score(df):

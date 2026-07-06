@@ -389,7 +389,16 @@ async def update_market_data(force=False):
                         "trend_strength": m.get('signal_score', 0),
                         "factors": m.get('factors', {}),
                         "prediction_5d_pct": m.get('prediction_5d_pct', 0),
-                        "prediction_label": m.get('prediction_label', 'SIDEWAYS')
+                        "prediction_label": m.get('prediction_label', 'SIDEWAYS'),
+                        "target_price": m.get('target_price', 0),
+                        "target_pct": m.get('target_pct', 0),
+                        "stop_loss": m.get('stop_loss', 0),
+                        "stop_loss_pct": m.get('stop_loss_pct', 0),
+                        "risk_reward_ratio": m.get('risk_reward_ratio', 0),
+                        "risk_score": m.get('risk_score', 0),
+                        "risk_label": m.get('risk_label', 'Low'),
+                        "avg_vol_20": m.get('avg_vol_20', 0),
+                        "liquidity_status": m.get('liquidity_status', 'Adequate')
                     }
             except: return None
 
@@ -411,14 +420,45 @@ async def update_market_data(force=False):
             market_cache["signals"] = {"bullish": convert_numpy(bull.to_dict('records')), "bearish": convert_numpy(bear.to_dict('records'))}
             save_market_cache("signals", market_cache["signals"])
             
-            scan = {r['symbol']: {"score": float(r['signal_score']), "action": "BUY" if r['signal_score'] >= 40 else "SELL" if r['signal_score'] <= -40 else "NEUTRAL", "price": float(r['price']), "pct_change": float(r['pct_change'])} for r in valid_data}
+            scan = {r['symbol']: {"score": float(r['signal_score']), "action": "BUY" if r['signal_score'] >= 25 else "SELL" if r['signal_score'] <= -25 else "NEUTRAL", "price": float(r['price']), "pct_change": float(r['pct_change'])} for r in valid_data}
             market_cache["scan"] = scan
             save_market_cache("scan", scan)
 
-            alpha_list = sorted(valid_data, key=lambda x: x['volume'], reverse=True)[:100]
-            for item in alpha_list:
-                item['action'] = "BUY" if item['signal_score'] >= 40 else "SELL" if item['signal_score'] <= -40 else "HOLD"
-            market_cache["alpha"] = convert_numpy(alpha_list)
+            # --- Alpha Composite Ranking (v2.0) ---
+            # Step 1: Filter out very low liquidity stocks
+            alpha_candidates = [s for s in valid_data if s.get('avg_vol_20', 0) >= 100000]
+            
+            # Step 2: Sort by volume, take top 100
+            alpha_candidates = sorted(alpha_candidates, key=lambda x: x['volume'], reverse=True)[:100]
+            
+            # Step 3: Compute composite Alpha Score for ranking
+            if alpha_candidates:
+                # Normalize volume ranks (1 = highest volume)
+                max_vol = max(s['volume'] for s in alpha_candidates) or 1
+                for i, item in enumerate(alpha_candidates):
+                    vol_rank_score = 1.0 - (i / len(alpha_candidates))  # 1.0 for #1, 0.0 for last
+                    signal_strength = min(abs(item['signal_score']) / 100.0, 1.0)  # Normalize 0-1
+                    rr_score = min(item.get('risk_reward_ratio', 0) / 3.0, 1.0)  # Normalize 0-1 (3:1 = max)
+                    
+                    # Composite: Signal 40% + Volume 30% + R:R 30%
+                    item['alpha_rank_score'] = round(
+                        (signal_strength * 0.40) + (vol_rank_score * 0.30) + (rr_score * 0.30), 4
+                    )
+                    
+                    # Action labels with STRONG tiers
+                    score = item['signal_score']
+                    risk = item.get('risk_score', 0)
+                    if score >= 60: item['action'] = "STRONG BUY"
+                    elif score >= 25:
+                        item['action'] = "CẢNH BÁO" if risk > 75 else "BUY"
+                    elif score <= -60: item['action'] = "STRONG SELL"
+                    elif score <= -25: item['action'] = "SELL"
+                    else: item['action'] = "HOLD"
+                
+                # Sort by composite alpha score descending
+                alpha_candidates.sort(key=lambda x: x['alpha_rank_score'], reverse=True)
+            
+            market_cache["alpha"] = convert_numpy(alpha_candidates)
             save_market_cache("alpha", market_cache["alpha"])
 
             # 3. Market Breadth & Liquidity

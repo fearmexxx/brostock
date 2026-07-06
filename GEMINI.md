@@ -66,4 +66,14 @@
 - **Alpha Dashboard:** Implemented a new `/alpha` Next.js screen featuring a full-width interactive table of the ranked universe with live search, action-based filters (BUY/SELL/HOLD), and 5-day outlook previews.
 - **Runtime:** Resolved python import issues by pinning local execution environment to Python 3.11.8.
 
+### July 6, 2026: Alpha v2.0 — Swing Trading Engine
+- **Scoring Symmetry Fix:** Fixed momentum bearish scoring (was -9 max, now -20 symmetric). Added MACD bearish crossover (-5), histogram contraction (-3). RSI overbought penalty increased -5 → -8.
+- **Volume Flow Enhancement:** Added volume drought detection (-6 at vol_surge < 0.5), distribution detection (-8 when price drops + volume surges), OBV impact doubled (±4 → ±8), below-VWAP penalty (-3).
+- **Mean Reversion Fix:** RSI bearish threshold corrected from > 75 to > 70 (symmetric with RSI < 30).
+- **Target Price & Stop Loss:** ATR×2 target with ATR×1.5 stop-loss (capped at ±5%). Risk:Reward ratio computed for every stock.
+- **Composite Alpha Ranking:** Replaced volume-only ranking with Signal Strength (40%) + Volume Rank (30%) + Risk:Reward (30%) composite score.
+- **Smart Filtering:** Liquidity filter (avg_vol_20d ≥ 100K), Risk filter (score > 75 → "CẢNH BÁO" instead of BUY).
+- **Lowered Thresholds:** BUY ≥ 25 (was 40), SELL ≤ -25 (was -40). Added STRONG BUY ≥ 60, STRONG SELL ≤ -60.
+- **Dashboard v2.0:** New columns: Mục tiêu (Target), Cắt lỗ (Stop Loss), R:R ratio with color-coded badges.
+
 
