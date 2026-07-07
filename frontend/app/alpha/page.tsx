@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { ArrowUp, ArrowDown, Award, BarChart3, Search, ChevronUp, ChevronDown } from "lucide-react"
+import { ArrowUp, ArrowDown, Award, BarChart3, Search, ChevronUp, ChevronDown, Calendar, LineChart } from "lucide-react"
 import Link from "next/link"
 
 interface AlphaStock {
@@ -24,14 +24,25 @@ interface AlphaStock {
   risk_score: number;
   risk_label: string;
   alpha_rank_score: number;
+  
+  // Long-term accumulation fields
+  lt_score: number;
+  lt_label: string;
+  lt_action: string;
+  lt_target_price: number;
+  lt_target_pct: number;
+  lt_stop_loss: number;
+  lt_stop_pct: number;
+  lt_rr_ratio: number;
 }
 
-type SortField = "volume" | "conviction" | "outlook" | "rr_ratio"
+type SortField = "volume" | "conviction" | "outlook" | "rr_ratio" | "lt_score" | "lt_rr_ratio"
 
 export default function AlphaPage() {
   const [stocks, setStocks] = useState<AlphaStock[]>([])
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState("")
+  const [mode, setMode] = useState<"swing" | "longterm">("swing")
   const [filterAction, setFilterAction] = useState<string>("ALL")
   const [sortBy, setSortBy] = useState<SortField>("conviction")
   const [sortOrder, setSortOrder] = useState<"desc" | "asc">("desc")
@@ -56,6 +67,14 @@ export default function AlphaPage() {
     return () => clearInterval(interval)
   }, [fetchAlphaData])
 
+  // Reset filter when switching modes
+  const handleModeChange = (newMode: "swing" | "longterm") => {
+    setMode(newMode)
+    setFilterAction("ALL")
+    setSortBy(newMode === "swing" ? "conviction" : "lt_score")
+    setSortOrder("desc")
+  }
+
   const handleSort = (field: SortField) => {
     if (sortBy === field) {
       setSortOrder(sortOrder === "asc" ? "desc" : "asc")
@@ -73,13 +92,22 @@ export default function AlphaPage() {
   // Filter and Search Logic
   const filteredStocks = stocks.filter(s => {
     const matchesSearch = s.symbol.toLowerCase().includes(searchQuery.toLowerCase())
-    let matchesFilter = filterAction === "ALL"
-    if (filterAction === "BUY") matchesFilter = s.action === "BUY" || s.action === "STRONG BUY"
-    else if (filterAction === "SELL") matchesFilter = s.action === "SELL" || s.action === "STRONG SELL"
-    else if (filterAction === "HOLD") matchesFilter = s.action === "HOLD"
-    else if (filterAction === "ALERT") matchesFilter = s.action === "CẢNH BÁO"
-    else matchesFilter = true
-    return matchesSearch && matchesFilter
+    if (!matchesSearch) return false
+
+    if (filterAction === "ALL") return true
+
+    if (mode === "swing") {
+      if (filterAction === "BUY") return s.action === "BUY" || s.action === "STRONG BUY"
+      if (filterAction === "SELL") return s.action === "SELL" || s.action === "STRONG SELL"
+      if (filterAction === "HOLD") return s.action === "HOLD"
+      if (filterAction === "ALERT") return s.action === "CẢNH BÁO"
+    } else {
+      if (filterAction === "ACCUMULATE") return s.lt_action === "TÍCH LŨY" || s.lt_action === "TÍCH LŨY MẠNH"
+      if (filterAction === "AVOID") return s.lt_action === "TRÁNH"
+      if (filterAction === "WATCH") return s.lt_action === "THEO DÕI"
+      if (filterAction === "ALERT") return s.lt_action === "CẢNH BÁO"
+    }
+    return true
   })
 
   // Sorting Logic
@@ -89,6 +117,8 @@ export default function AlphaPage() {
     else if (sortBy === "conviction") { valA = a.signal_score; valB = b.signal_score }
     else if (sortBy === "outlook") { valA = a.prediction_5d_pct; valB = b.prediction_5d_pct }
     else if (sortBy === "rr_ratio") { valA = a.risk_reward_ratio; valB = b.risk_reward_ratio }
+    else if (sortBy === "lt_score") { valA = a.lt_score; valB = b.lt_score }
+    else if (sortBy === "lt_rr_ratio") { valA = a.lt_rr_ratio; valB = b.lt_rr_ratio }
     return sortOrder === "asc" ? valA - valB : valB - valA
   })
 
@@ -114,6 +144,16 @@ export default function AlphaPage() {
     }
   }
 
+  const getLTActionBadge = (action: string) => {
+    switch (action) {
+      case "TÍCH LŨY MẠNH": return "bg-green-700 text-white ring-2 ring-green-400/50"
+      case "TÍCH LŨY": return "bg-green-600 text-white"
+      case "TRÁNH": return "bg-red-600 text-white"
+      case "CẢNH BÁO": return "bg-amber-500 text-black"
+      default: return "bg-gray-100 text-gray-600"
+    }
+  }
+
   const getRRColor = (rr: number) => {
     if (rr >= 2) return "text-green-600 font-black"
     if (rr >= 1) return "text-amber-600 font-bold"
@@ -133,17 +173,39 @@ export default function AlphaPage() {
       <div className="max-w-[1600px] mx-auto space-y-6">
         
         {/* Header */}
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4 border-b border-gray-200 pb-6">
+        <div className="flex flex-col lg:flex-row justify-between items-start lg:items-end gap-4 border-b border-gray-200 pb-6">
           <div>
             <div className="flex items-center gap-2">
               <Award className="text-amber-500" size={28} />
-              <h1 className="text-3xl font-black text-gray-900 tracking-wider">BROSTOCK ALPHA v2.0</h1>
+              <h1 className="text-3xl font-black text-gray-900 tracking-wider">BROSTOCK ALPHA v2.5</h1>
             </div>
-            <p className="text-gray-500 mt-1">Hệ thống xếp hạng tổng hợp Top 100 — Tín hiệu Swing Trading mục tiêu 6-10%/tháng</p>
+            <p className="text-gray-500 mt-1">Hệ thống xếp hạng tổng hợp Top 100 cơ hội thị trường Việt Nam (Lợi nhuận ròng đã trừ thuế & phí 0.4%)</p>
           </div>
-          <div className="text-left md:text-right text-[11px] text-gray-400 font-mono">
-            <p>Composite Rank = Signal (40%) + Volume (30%) + R:R (30%)</p>
-            {stocks.length > 0 && <p>Cập nhật tự động mỗi 60 giây</p>}
+          
+          {/* Mode Switcher */}
+          <div className="flex gap-2 bg-gray-200/60 p-1.5 rounded-lg border border-gray-300 shadow-inner">
+            <button
+              onClick={() => handleModeChange("swing")}
+              className={`flex items-center gap-1.5 px-4 py-2 rounded-md text-xs font-bold transition-all duration-155 uppercase ${
+                mode === "swing" 
+                  ? "bg-[#1e3a8a] text-white shadow-sm" 
+                  : "text-gray-650 hover:bg-gray-100"
+              }`}
+            >
+              <LineChart size={14} />
+              Swing Trading (T+15)
+            </button>
+            <button
+              onClick={() => handleModeChange("longterm")}
+              className={`flex items-center gap-1.5 px-4 py-2 rounded-md text-xs font-bold transition-all duration-155 uppercase ${
+                mode === "longterm" 
+                  ? "bg-[#1e3a8a] text-white shadow-sm" 
+                  : "text-gray-650 hover:bg-gray-100"
+              }`}
+            >
+              <Calendar size={14} />
+              Tích lũy Dài hạn (3-6M)
+            </button>
           </div>
         </div>
 
@@ -161,26 +223,50 @@ export default function AlphaPage() {
               onChange={(e) => setSearchQuery(e.target.value)}
             />
           </div>
+          
+          {/* Quick Filters - Contextual based on mode */}
           <div className="flex gap-2 w-full md:w-auto overflow-x-auto">
-            {[
-              { key: "ALL", label: "TẤT CẢ" },
-              { key: "BUY", label: "MUA" },
-              { key: "SELL", label: "BÁN" },
-              { key: "HOLD", label: "NẮM GIỮ" },
-              { key: "ALERT", label: "CẢNH BÁO" },
-            ].map(f => (
-              <button
-                key={f.key}
-                onClick={() => setFilterAction(f.key)}
-                className={`px-4 py-1.5 rounded text-xs font-bold uppercase transition ${
-                  filterAction === f.key
-                    ? "bg-[#1e3a8a] text-white shadow-md"
-                    : "bg-white text-gray-600 border border-gray-200 hover:bg-gray-50 shadow-sm"
-                }`}
-              >
-                {f.label}
-              </button>
-            ))}
+            {mode === "swing" ? (
+              [
+                { key: "ALL", label: "TẤT CẢ" },
+                { key: "BUY", label: "MUA" },
+                { key: "SELL", label: "BÁN" },
+                { key: "HOLD", label: "NẮM GIỮ" },
+                { key: "ALERT", label: "CẢNH BÁO" },
+              ].map(f => (
+                <button
+                  key={f.key}
+                  onClick={() => setFilterAction(f.key)}
+                  className={`px-4 py-1.5 rounded text-xs font-bold uppercase transition ${
+                    filterAction === f.key
+                      ? "bg-[#1e3a8a] text-white shadow-md"
+                      : "bg-white text-gray-600 border border-gray-200 hover:bg-gray-50 shadow-sm"
+                  }`}
+                >
+                  {f.label}
+                </button>
+              ))
+            ) : (
+              [
+                { key: "ALL", label: "TẤT CẢ" },
+                { key: "ACCUMULATE", label: "TÍCH LŨY" },
+                { key: "WATCH", label: "THEO DÕI" },
+                { key: "AVOID", label: "TRÁNH" },
+                { key: "ALERT", label: "CẢNH BÁO" },
+              ].map(f => (
+                <button
+                  key={f.key}
+                  onClick={() => setFilterAction(f.key)}
+                  className={`px-4 py-1.5 rounded text-xs font-bold uppercase transition ${
+                    filterAction === f.key
+                      ? "bg-[#1e3a8a] text-white shadow-md"
+                      : "bg-white text-gray-600 border border-gray-200 hover:bg-gray-50 shadow-sm"
+                  }`}
+                >
+                  {f.label}
+                </button>
+              ))
+            )}
           </div>
         </div>
 
@@ -190,7 +276,10 @@ export default function AlphaPage() {
             <div className="flex justify-between items-center">
               <CardTitle className="text-md font-bold text-gray-800 flex items-center gap-2">
                 <BarChart3 size={18} className="text-blue-600" />
-                Bảng tín hiệu ALPHA v2.0 — Xếp hạng tổng hợp
+                {mode === "swing" 
+                  ? "Bảng tín hiệu ALPHA v2.5 — Swing Trading (Mục tiêu 6-10%/tháng)" 
+                  : "Bảng tín hiệu ALPHA v2.5 — Đầu tư & Tích lũy dài hạn (Nắm giữ 3-6 tháng)"
+                }
               </CardTitle>
               <span className="text-xs text-gray-500 font-mono">Hiển thị {filteredStocks.length} / {stocks.length} mã</span>
             </div>
@@ -200,7 +289,8 @@ export default function AlphaPage() {
               <div className="p-12 text-center text-gray-500">
                 Không tìm thấy mã cổ phiếu nào phù hợp.
               </div>
-            ) : (
+            ) : mode === "swing" ? (
+              /* SWING TRADING TABLE VIEW */
               <table className="w-full text-sm text-left border-collapse text-gray-700">
                 <thead className="bg-gray-50 text-gray-500 uppercase text-[10px] font-bold tracking-wider border-b border-gray-200 sticky top-0">
                   <tr>
@@ -221,8 +311,8 @@ export default function AlphaPage() {
                       <div className="flex items-center justify-center gap-1">Conviction <SortIcon field="conviction" /></div>
                     </th>
                     <th className="px-3 py-3 text-center">Khuyến nghị</th>
-                    <th className="px-3 py-3 text-right text-green-700">Mục tiêu</th>
-                    <th className="px-3 py-3 text-right text-red-700">Cắt lỗ</th>
+                    <th className="px-3 py-3 text-right text-green-700">Mục tiêu (Net)</th>
+                    <th className="px-3 py-3 text-right text-red-700">Cắt lỗ (Net)</th>
                     <th 
                       className="px-3 py-3 text-center cursor-pointer hover:text-gray-900 transition select-none"
                       onClick={() => handleSort("rr_ratio")}
@@ -279,7 +369,7 @@ export default function AlphaPage() {
                       </td>
                       <td className="px-3 py-3 text-right font-mono text-xs">
                         <div className="text-red-600 font-bold">{(s.stop_loss * 1000).toLocaleString()}</div>
-                        <div className="text-[9px] text-red-400">{s.stop_loss_pct}%</div>
+                        <div className="text-[9px] text-red-450">{s.stop_loss_pct}%</div>
                       </td>
                       <td className="px-3 py-3 text-center">
                         <span className={`font-mono text-xs ${getRRColor(s.risk_reward_ratio)}`}>
@@ -295,6 +385,101 @@ export default function AlphaPage() {
                         <div className="text-[8px] uppercase tracking-wider text-gray-400">
                           {s.prediction_label === "UPWARD" ? "TĂNG" : s.prediction_label === "DOWNWARD" ? "GIẢM" : "NGANG"}
                         </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            ) : (
+              /* LONG-TERM ACCUMULATION TABLE VIEW */
+              <table className="w-full text-sm text-left border-collapse text-gray-700">
+                <thead className="bg-gray-50 text-gray-500 uppercase text-[10px] font-bold tracking-wider border-b border-gray-200 sticky top-0">
+                  <tr>
+                    <th className="px-3 py-3 text-center w-10">#</th>
+                    <th className="px-3 py-3">Mã</th>
+                    <th className="px-3 py-3 text-right">Giá</th>
+                    <th className="px-3 py-3 text-right">%</th>
+                    <th 
+                      className="px-3 py-3 text-right cursor-pointer hover:text-gray-900 transition select-none"
+                      onClick={() => handleSort("volume")}
+                    >
+                      <div className="flex items-center justify-end gap-1">KL <SortIcon field="volume" /></div>
+                    </th>
+                    <th 
+                      className="px-3 py-3 text-center cursor-pointer hover:text-gray-900 transition select-none"
+                      onClick={() => handleSort("lt_score")}
+                    >
+                      <div className="flex items-center justify-center gap-1">Điểm LT Accum <SortIcon field="lt_score" /></div>
+                    </th>
+                    <th className="px-3 py-3 text-center">Khuyến nghị LT</th>
+                    <th className="px-3 py-3 text-right text-green-700">Mục tiêu LT (Net)</th>
+                    <th className="px-3 py-3 text-right text-red-700">Cắt lỗ LT (Net)</th>
+                    <th 
+                      className="px-3 py-3 text-center cursor-pointer hover:text-gray-900 transition select-none"
+                      onClick={() => handleSort("lt_rr_ratio")}
+                    >
+                      <div className="flex items-center justify-center gap-1">R:R LT <SortIcon field="lt_rr_ratio" /></div>
+                    </th>
+                    <th className="px-3 py-3 text-center">Rủi ro (LT)</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {sortedStocks.map((s, index) => (
+                    <tr key={s.symbol} className="hover:bg-blue-50/50 transition duration-100">
+                      <td className="px-3 py-3 text-center font-mono text-xs text-gray-400">
+                        {index + 1}
+                      </td>
+                      <td className="px-3 py-3">
+                        <Link href={`/?symbol=${s.symbol}`} className="font-extrabold text-blue-900 hover:underline tracking-wider">
+                          {s.symbol}
+                        </Link>
+                      </td>
+                      <td className="px-3 py-3 text-right font-semibold font-mono text-gray-900 text-xs">
+                        {s.price.toLocaleString()}
+                      </td>
+                      <td className="px-3 py-3 text-right font-mono text-xs">
+                        <span className={`font-bold ${s.pct_change >= 0 ? "text-green-600" : "text-red-600"}`}>
+                          {s.pct_change >= 0 ? "+" : ""}{s.pct_change.toFixed(2)}%
+                        </span>
+                      </td>
+                      <td className="px-3 py-3 text-right font-mono font-medium text-gray-500 text-xs">
+                        {(s.volume / 1000000).toFixed(1)}M
+                      </td>
+                      <td className="px-3 py-3 text-center">
+                        <div className={`inline-block px-2 py-0.5 rounded font-mono font-bold text-xs ${
+                          s.lt_score >= 25 ? "bg-green-100 text-green-800" :
+                          s.lt_score <= -25 ? "bg-red-100 text-red-800" :
+                          "bg-gray-100 text-gray-600"
+                        }`}>
+                          {s.lt_score > 0 ? "+" : ""}{s.lt_score}
+                        </div>
+                      </td>
+                      <td className="px-3 py-3 text-center">
+                        <span className={`px-2 py-1 rounded text-[10px] font-black uppercase inline-block shadow-sm tracking-wide ${getLTActionBadge(s.lt_action)}`}>
+                          {s.lt_action}
+                        </span>
+                      </td>
+                      <td className="px-3 py-3 text-right font-mono text-xs">
+                        <div className="text-green-700 font-bold">{(s.lt_target_price * 1000).toLocaleString()}</div>
+                        <div className="text-[9px] text-green-500">{s.lt_target_pct >= 0 ? "+" : ""}{s.lt_target_pct}%</div>
+                      </td>
+                      <td className="px-3 py-3 text-right font-mono text-xs">
+                        <div className="text-red-600 font-bold">{(s.lt_stop_loss * 1000).toLocaleString()}</div>
+                        <div className="text-[9px] text-red-400">{s.lt_stop_pct}%</div>
+                      </td>
+                      <td className="px-3 py-3 text-center">
+                        <span className={`font-mono text-xs ${getRRColor(s.lt_rr_ratio)}`}>
+                          {s.lt_rr_ratio.toFixed(1)}:1
+                        </span>
+                      </td>
+                      <td className="px-3 py-3 text-center">
+                        <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                          s.risk_score > 60 ? "bg-red-100 text-red-700" :
+                          s.risk_score > 40 ? "bg-amber-100 text-amber-700" :
+                          "bg-green-100 text-green-700"
+                        }`}>
+                          {s.risk_label} ({s.risk_score})
+                        </span>
                       </td>
                     </tr>
                   ))}

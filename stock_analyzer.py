@@ -180,6 +180,12 @@ def get_stock_history_data(symbol, days=365):
         print(f"Error getting history for {symbol}: {e}")
         return pd.DataFrame()
 
+# --- Vietnam Market Transaction Costs ---
+VN_BUY_FEE = 0.0015    # 0.15% phí mua
+VN_SELL_FEE = 0.0015    # 0.15% phí bán
+VN_SELL_TAX = 0.001     # 0.1% thuế bán
+VN_ROUND_TRIP = VN_BUY_FEE + VN_SELL_FEE + VN_SELL_TAX  # 0.4% tổng
+
 def calculate_trend_metrics(df):
     """
     Calculates institutional-grade trend metrics from historical data (Daily).
@@ -270,6 +276,8 @@ def calculate_trend_metrics(df):
         vol_score += 3
     else:
         vol_score -= 3  # Below VWAP is bearish
+    # Cap to ±15 to match factor target
+    vol_score = max(min(vol_score, 15), -15)
         
     # 4. Volatility Regime (15%) - Target: +/- 15
     # ATR
@@ -363,11 +371,10 @@ def calculate_trend_metrics(df):
     # Final Cap to prevent extreme repeated values
     final_prediction_pct = max(min(final_prediction_pct, 15.0), -15.0)
 
-    # --- Target Price & Stop Loss (Swing Trading) ---
+    # --- Target Price & Stop Loss (Swing Trading, Net of VN Fees) ---
     atr_value = float(atr) if pd.notnull(atr) else 0
-    # Target: ATR × 2 above current price, capped at upper BB
-    target_by_atr = current_price + (atr_value * 2)
-    target_price = min(target_by_atr, float(upper_bb)) if final_score > 0 else max(current_price - (atr_value * 2), float(lower_bb))
+    fee_pct = VN_ROUND_TRIP * 100  # 0.4%
+    
     # For BUY signals: target is above, stop is below
     # For SELL signals: target is below, stop is above
     if final_score >= 0:
@@ -380,12 +387,22 @@ def calculate_trend_metrics(df):
         stop_loss = current_price + (atr_value * 1.5)
         stop_loss = min(stop_loss, current_price * 1.05)
     
-    target_pct = round(((target_price / current_price) - 1) * 100, 2) if current_price > 0 else 0
-    stop_loss_pct = round(((stop_loss / current_price) - 1) * 100, 2) if current_price > 0 else 0
+    # Gross percentages
+    target_pct_gross = round(((target_price / current_price) - 1) * 100, 2) if current_price > 0 else 0
+    stop_loss_pct_gross = round(((stop_loss / current_price) - 1) * 100, 2) if current_price > 0 else 0
     
-    # Risk:Reward Ratio
-    reward = abs(target_price - current_price)
-    risk = abs(current_price - stop_loss)
+    # Net percentages (after VN transaction costs)
+    # Fees always reduce profit and increase loss
+    if final_score >= 0:
+        target_pct = round(target_pct_gross - fee_pct, 2)      # BUY: profit shrinks
+        stop_loss_pct = round(stop_loss_pct_gross - fee_pct, 2) # BUY: loss grows
+    else:
+        target_pct = round(target_pct_gross + fee_pct, 2)      # SELL: short profit shrinks
+        stop_loss_pct = round(stop_loss_pct_gross + fee_pct, 2) # SELL: short loss grows
+    
+    # Risk:Reward Ratio (based on net values)
+    reward = abs(target_pct)
+    risk = abs(stop_loss_pct)
     risk_reward_ratio = round(reward / risk, 2) if risk > 0 else 0
 
     # Calculate Risk Score
@@ -494,6 +511,217 @@ def calculate_risk_score(df):
             'expansion': int(vlt_expansion_score),
             'drawdown': int(dd_score)
         }
+    }
+
+def calculate_longterm_score(df):
+    """
+    Calculates a Long-Term Accumulation Score for 3-6 month holding.
+    Score range: -100 (Danger/Avoid) to +100 (Strong Accumulate).
+    
+    Factors:
+    1. Long-term Trend (35%) - SMA50/200 alignment, Golden Cross, slope.
+    2. Volume Accumulation (25%) - OBV 60d trend, volume expansion, A/D pattern.
+    3. Price Strength (20%) - Higher Lows, RSI stability, ROC 60d.
+    4. Stability (15%) - Low ATR, no deep drawdown.
+    5. Relative Value (5%) - Distance from SMA200.
+    """
+    if df.empty or len(df) < 60:
+        return {}
+    
+    for col in ['close', 'volume', 'high', 'low']:
+        df[col] = pd.to_numeric(df[col], errors='coerce')
+    
+    current_price = df['close'].iloc[-1]
+    
+    # --- Shared Indicators ---
+    sma_50 = df['close'].tail(50).mean()
+    sma_200 = df['close'].tail(200).mean() if len(df) >= 200 else df['close'].mean()
+    
+    # ATR
+    tr = pd.concat([
+        df['high'] - df['low'],
+        (df['high'] - df['close'].shift(1)).abs(),
+        (df['low'] - df['close'].shift(1)).abs()
+    ], axis=1).max(axis=1)
+    atr = tr.rolling(14).mean().iloc[-1]
+    
+    # RSI
+    delta = df['close'].diff()
+    gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
+    loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
+    rs = gain / loss
+    rsi = (100 - (100 / (1 + rs))).iloc[-1]
+    
+    # OBV
+    obv = (np.sign(df['close'].diff()) * df['volume']).fillna(0).cumsum()
+    
+    # ===== FACTOR 1: Long-term Trend (35%) — max ±35 =====
+    lt_trend = 0
+    # Golden Cross: SMA50 > SMA200
+    if sma_50 > sma_200: lt_trend += 15
+    else: lt_trend -= 15
+    
+    # Price above SMA200 for sustained period
+    if len(df) >= 20:
+        above_200 = (df['close'].tail(20) > sma_200).sum()
+        if above_200 >= 16: lt_trend += 10  # 80%+ of last 20 days above SMA200
+        elif above_200 <= 4: lt_trend -= 10  # 80%+ below
+    
+    # SMA200 slope (upward = bullish)
+    if len(df) >= 210:
+        sma_200_prev = df['close'].iloc[-210:-10].tail(200).mean()
+        if sma_200 > sma_200_prev: lt_trend += 10
+        else: lt_trend -= 10
+    elif len(df) >= 70:
+        sma_60_now = df['close'].tail(60).mean()
+        sma_60_prev = df['close'].iloc[-70:-10].tail(60).mean() if len(df) >= 70 else sma_60_now
+        if sma_60_now > sma_60_prev: lt_trend += 10
+        else: lt_trend -= 10
+    
+    # ===== FACTOR 2: Volume Accumulation (25%) — max ±25 =====
+    lt_vol = 0
+    
+    # OBV 60d trend (slope)
+    if len(obv) >= 60:
+        try:
+            obv_60 = obv.tail(60).values
+            x_obv = np.arange(len(obv_60))
+            obv_slope, _ = np.polyfit(x_obv, obv_60, 1)
+            if obv_slope > 0: lt_vol += 10
+            else: lt_vol -= 10
+        except: pass
+    
+    # Volume expansion: avg vol 20d vs 60d
+    avg_vol_20 = df['volume'].tail(20).mean()
+    avg_vol_60 = df['volume'].tail(60).mean() if len(df) >= 60 else avg_vol_20
+    vol_ratio = 1.0  # Default to prevent NameError
+    if avg_vol_60 > 0:
+        vol_ratio = avg_vol_20 / avg_vol_60
+        if vol_ratio > 1.2: lt_vol += 8   # Volume expanding
+        elif vol_ratio < 0.7: lt_vol -= 8  # Volume contracting
+    
+    # Accumulation pattern: price sideways + volume increasing
+    if len(df) >= 20:
+        price_range = (df['close'].tail(20).max() - df['close'].tail(20).min()) / current_price
+        if price_range < 0.08 and vol_ratio > 1.1:  # <8% range + vol up = accumulation
+            lt_vol += 7
+        elif price_range < 0.08 and vol_ratio < 0.8:  # Sideways + vol down = disinterest
+            lt_vol -= 7
+    
+    # ===== FACTOR 3: Price Strength (20%) — max ±20 =====
+    lt_price = 0
+    
+    # Higher Lows detection (last 20 days, check 4 weekly lows)
+    if len(df) >= 20:
+        lows_5d = [df['low'].iloc[i:i+5].min() for i in range(-20, 0, 5)]
+        if len(lows_5d) >= 3:
+            higher_lows = all(lows_5d[i] <= lows_5d[i+1] for i in range(len(lows_5d)-1))
+            lower_lows = all(lows_5d[i] >= lows_5d[i+1] for i in range(len(lows_5d)-1))
+            if higher_lows: lt_price += 8
+            elif lower_lows: lt_price -= 8
+    
+    # RSI stability (40-60 = healthy, stable)
+    if 45 <= rsi <= 65: lt_price += 6
+    elif rsi > 75: lt_price -= 6  # Overextended
+    elif rsi < 25: lt_price += 4  # Deep value (contrarian for LT)
+    
+    # ROC 60d
+    if len(df) >= 60:
+        roc_60 = ((current_price / df['close'].iloc[-60]) - 1) * 100
+        if roc_60 > 5: lt_price += 6
+        elif roc_60 < -10: lt_price -= 6
+    
+    # ===== FACTOR 4: Stability (15%) — max ±15 =====
+    lt_stab = 0
+    
+    # Low volatility (ATR/Price < 2%)
+    atr_pct = (atr / current_price) * 100 if current_price > 0 else 5
+    if atr_pct < 2: lt_stab += 8
+    elif atr_pct > 4: lt_stab -= 8
+    
+    # No deep drawdown in 60 days
+    if len(df) >= 60:
+        recent_60 = df['close'].tail(60)
+        rolling_max_60 = recent_60.cummax()
+        drawdown_60 = ((recent_60 - rolling_max_60) / rolling_max_60).min() * 100
+        if drawdown_60 > -10: lt_stab += 7  # Shallow drawdown = stable
+        elif drawdown_60 < -20: lt_stab -= 7  # Deep drawdown = unstable
+    
+    # ===== FACTOR 5: Relative Value (5%) — max ±5 =====
+    lt_value = 0
+    dist_from_200 = ((current_price - sma_200) / sma_200) * 100 if sma_200 > 0 else 0
+    
+    if -5 <= dist_from_200 <= 5: lt_value += 5   # Near SMA200 support — good entry
+    elif dist_from_200 > 20: lt_value -= 5        # Too extended above SMA200
+    elif dist_from_200 < -15: lt_value -= 3       # Falling knife caution
+    
+    # ===== Final Weighted Score =====
+    raw_lt = (lt_trend * 0.35 + lt_vol * 0.25 + lt_price * 0.20 + 
+              lt_stab * 0.15 + lt_value * 0.05)
+    lt_score = max(min(int(raw_lt * 4), 100), -100)
+    
+    # Labels
+    if lt_score >= 50: lt_label = 'Strong Accumulate'
+    elif lt_score >= 25: lt_label = 'Accumulate'
+    elif lt_score > -25: lt_label = 'Watch'
+    elif lt_score >= -50: lt_label = 'Avoid'
+    else: lt_label = 'Danger'
+    
+    # Action
+    if lt_score >= 50: lt_action = 'TÍCH LŨY MẠNH'
+    elif lt_score >= 25: lt_action = 'TÍCH LŨY'
+    elif lt_score > -25: lt_action = 'THEO DÕI'
+    elif lt_score >= -50: lt_action = 'TRÁNH'
+    else: lt_action = 'CẢNH BÁO'
+    
+    # --- Long-term Target & Stop Loss (Net of VN Fees) ---
+    atr_value = float(atr) if pd.notnull(atr) else 0
+    fee_pct = VN_ROUND_TRIP * 100  # 0.4%
+    
+    if lt_score >= 0:
+        lt_target = current_price + (atr_value * 5)  # Wider target for LT
+        lt_stop = current_price - (atr_value * 3)      # Wider stop for LT
+        lt_stop = max(lt_stop, current_price * 0.90)   # Cap at -10%
+    else:
+        lt_target = current_price - (atr_value * 5)
+        lt_stop = current_price + (atr_value * 3)
+        lt_stop = min(lt_stop, current_price * 1.10)
+    
+    lt_target_pct_gross = round(((lt_target / current_price) - 1) * 100, 2) if current_price > 0 else 0
+    lt_stop_pct_gross = round(((lt_stop / current_price) - 1) * 100, 2) if current_price > 0 else 0
+    
+    # Net percentages (after VN fees, direction-aware)
+    if lt_score >= 0:
+        lt_target_pct = round(lt_target_pct_gross - fee_pct, 2)
+        lt_stop_pct = round(lt_stop_pct_gross - fee_pct, 2)
+    else:
+        lt_target_pct = round(lt_target_pct_gross + fee_pct, 2)
+        lt_stop_pct = round(lt_stop_pct_gross + fee_pct, 2)
+    
+    lt_reward = abs(lt_target_pct)
+    lt_risk = abs(lt_stop_pct)
+    lt_rr = round(lt_reward / lt_risk, 2) if lt_risk > 0 else 0
+    
+    def normalize(val, max_val):
+        if max_val == 0: return 50
+        return int(max(0, min(100, (val + max_val) / (2 * max_val) * 100)))
+    
+    return {
+        'lt_score': lt_score,
+        'lt_label': lt_label,
+        'lt_action': lt_action,
+        'lt_factors': {
+            'trend': normalize(lt_trend, 35),
+            'volume_accum': normalize(lt_vol, 25),
+            'price_strength': normalize(lt_price, 20),
+            'stability': normalize(lt_stab, 15),
+            'relative_value': normalize(lt_value, 5)
+        },
+        'lt_target_price': round(lt_target, 2),
+        'lt_target_pct': lt_target_pct,
+        'lt_stop_loss': round(lt_stop, 2),
+        'lt_stop_pct': lt_stop_pct,
+        'lt_rr_ratio': lt_rr
     }
 
 # 2. Pre-processing data | Tiền xử lý dữ liệu

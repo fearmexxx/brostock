@@ -24,8 +24,8 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from stock_analyzer import (
     get_intraday_data, preprocess_data, aggregate_data, calculate_summary,
-    get_stock_history_data, calculate_trend_metrics, is_trading_time,
-    generate_intraday_chart_image
+    get_stock_history_data, calculate_trend_metrics, calculate_longterm_score,
+    is_trading_time, generate_intraday_chart_image
 )
 from backtester import run_backtest
 from database import (
@@ -378,6 +378,7 @@ async def update_market_data(force=False):
                 if df is not None and len(df) >= 2:
                     prev, curr = df['close'].iloc[-2], df['close'].iloc[-1]
                     m = calculate_trend_metrics(df)
+                    lt = calculate_longterm_score(df)
                     return {
                         "symbol": symbol, 
                         "price": float(curr)*1000, 
@@ -398,7 +399,16 @@ async def update_market_data(force=False):
                         "risk_score": m.get('risk_score', 0),
                         "risk_label": m.get('risk_label', 'Low'),
                         "avg_vol_20": m.get('avg_vol_20', 0),
-                        "liquidity_status": m.get('liquidity_status', 'Adequate')
+                        "liquidity_status": m.get('liquidity_status', 'Adequate'),
+                        # Long-term accumulation fields
+                        "lt_score": lt.get('lt_score', 0),
+                        "lt_label": lt.get('lt_label', 'Watch'),
+                        "lt_action": lt.get('lt_action', 'THEO DÕI'),
+                        "lt_target_price": lt.get('lt_target_price', 0),
+                        "lt_target_pct": lt.get('lt_target_pct', 0),
+                        "lt_stop_loss": lt.get('lt_stop_loss', 0),
+                        "lt_stop_pct": lt.get('lt_stop_pct', 0),
+                        "lt_rr_ratio": lt.get('lt_rr_ratio', 0)
                     }
             except: return None
 
@@ -433,8 +443,6 @@ async def update_market_data(force=False):
             
             # Step 3: Compute composite Alpha Score for ranking
             if alpha_candidates:
-                # Normalize volume ranks (1 = highest volume)
-                max_vol = max(s['volume'] for s in alpha_candidates) or 1
                 for i, item in enumerate(alpha_candidates):
                     vol_rank_score = 1.0 - (i / len(alpha_candidates))  # 1.0 for #1, 0.0 for last
                     signal_strength = min(abs(item['signal_score']) / 100.0, 1.0)  # Normalize 0-1
