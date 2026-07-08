@@ -517,11 +517,11 @@ async def update_market_data(force=False):
                     market_cache["derivatives_history"] = history
                     save_market_cache("derivatives_history", history)
                     print(f"[Derivatives] VN30F signal: {deriv_signal['signal_label']} ({deriv_signal['signal_score']})")
-        except Exception as e:
+        except (Exception, SystemExit) as e:
             print(f"[Derivatives] Error: {e}")
 
         market_cache["last_updated"] = datetime.now().isoformat()
-    except Exception as e: print(f"Error updating market: {e}")
+    except (Exception, SystemExit) as e: print(f"Error updating market: {e}")
 
 # --- Lifecycle ---
 
@@ -574,7 +574,10 @@ async def shutdown_event():
 
 async def periodic_update():
     while True:
-        await update_market_data()
+        try:
+            await update_market_data()
+        except (Exception, SystemExit) as e:
+            print(f"[Periodic] Error (will retry): {e}")
         await asyncio.sleep(600)
 
 # --- Endpoints ---

@@ -23,7 +23,7 @@ def get_vn30_data(days=120):
             for col in ['open', 'high', 'low', 'close', 'volume']:
                 df[col] = pd.to_numeric(df[col], errors='coerce')
             return df
-    except Exception as e:
+    except (Exception, SystemExit) as e:
         print(f"[Derivatives] Error fetching VN30 data: {e}")
     return pd.DataFrame()
 
