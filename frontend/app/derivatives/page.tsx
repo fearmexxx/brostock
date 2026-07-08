@@ -150,7 +150,7 @@ export default function DerivativesPage() {
           </div>
           <div className="text-right flex flex-col items-end">
             <div className="flex items-baseline gap-2">
-              <span className="text-4xl font-black text-gray-900">{signal.vn30_price.toLocaleString()}</span>
+              <span className="text-4xl font-black text-gray-900">{signal.vn30_price.toFixed(2)}</span>
               <span className={`text-xl font-bold flex items-center ${signal.pct_change >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
                 {signal.pct_change >= 0 ? <ArrowUp size={20} /> : <ArrowDown size={20} />}
                 {Math.abs(signal.pct_change).toFixed(2)}%
