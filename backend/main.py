@@ -28,6 +28,7 @@ from stock_analyzer import (
     is_trading_time, generate_intraday_chart_image
 )
 from backtester import run_backtest
+from derivatives_analyzer import get_vn30_data, calculate_vn30f_signal, get_signal_history
 from database import (
     place_trade, get_portfolio, save_market_cache, get_market_cache, init_db
 )
@@ -482,6 +483,43 @@ async def update_market_data(force=False):
             }
             save_market_cache("market_stats", market_cache["market_stats"])
         
+        # 4. Derivatives VN30F Signal
+        try:
+            vn30_df = get_vn30_data(days=120)
+            if not vn30_df.empty:
+                breadth = market_cache.get("market_stats", {}).get("breadth", {})
+                deriv_signal = calculate_vn30f_signal(vn30_df, breadth)
+                if deriv_signal:
+                    market_cache["derivatives_signal"] = convert_numpy(deriv_signal)
+                    save_market_cache("derivatives_signal", market_cache["derivatives_signal"])
+                    
+                    # Append to history (max 30 days)
+                    history, _ = get_market_cache("derivatives_history")
+                    if not history or not isinstance(history, list):
+                        history = []
+                    # Avoid duplicates for same date
+                    today_date = deriv_signal.get('date', '')
+                    history = [h for h in history if h.get('date') != today_date]
+                    history.append({
+                        'date': today_date,
+                        'score': deriv_signal['signal_score'],
+                        'label': deriv_signal['signal_label'],
+                        'action_vn': deriv_signal['action_vn'],
+                        'vn30_price': deriv_signal['vn30_price'],
+                        'pct_change': deriv_signal['pct_change'],
+                        'entry': deriv_signal['entry'],
+                        'target': deriv_signal['target'],
+                        'stop_loss': deriv_signal['stop_loss'],
+                        'rr_ratio': deriv_signal['rr_ratio'],
+                        'regime': deriv_signal['market_regime']
+                    })
+                    history = history[-30:]  # Keep last 30 days
+                    market_cache["derivatives_history"] = history
+                    save_market_cache("derivatives_history", history)
+                    print(f"[Derivatives] VN30F signal: {deriv_signal['signal_label']} ({deriv_signal['signal_score']})")
+        except Exception as e:
+            print(f"[Derivatives] Error: {e}")
+
         market_cache["last_updated"] = datetime.now().isoformat()
     except Exception as e: print(f"Error updating market: {e}")
 
@@ -554,6 +592,12 @@ async def get_market_alpha(): return market_cache.get("alpha", [])
 async def trigger_market_update():
     asyncio.create_task(update_market_data(force=True))
     return {"message": "Đã kích hoạt cập nhật"}
+
+@app.get("/api/derivatives/signal")
+async def get_derivatives_signal():
+    signal = market_cache.get("derivatives_signal", {})
+    history = market_cache.get("derivatives_history", [])
+    return {"signal": signal, "history": history[-7:]}
 
 @app.get("/api/stock/{symbol}", response_model=StockAnalysisResponse)
 async def analyze_stock(symbol: str):
