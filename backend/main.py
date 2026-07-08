@@ -341,6 +341,12 @@ async def update_market_data(force=False):
     now = utc_now.astimezone(vn_tz)
     is_eod = now.weekday() <= 4 and dt_time(15, 45) <= now.time() <= dt_time(19, 0)
     
+    today_str = now.strftime('%Y-%m-%d')
+    if not force and is_eod:
+        cached_eod, _ = get_market_cache("last_eod_date")
+        if cached_eod == today_str:
+            return # EOD update already completed today, skip API calls
+
     if not force and not is_trading_time() and not is_eod and market_cache["last_updated"]:
         return
 
@@ -354,7 +360,7 @@ async def update_market_data(force=False):
         for idx in ['VNINDEX', 'HNXINDEX', 'VN30']:
             try:
                 time.sleep(1.0)
-                df = Quote(symbol=idx, source='vci').history(start=start_date, end=end_date)
+                df = get_stock_history_data(idx, days=120)
                 if df is not None and len(df) >= 2:
                     prev, curr = df['close'].iloc[-2], df['close'].iloc[-1]
                     indices_data[idx] = {"value": float(curr), "change": float(curr - prev), "pct_change": float((curr/prev-1)*100), "volume": int(df['volume'].iloc[-1])}
@@ -364,18 +370,26 @@ async def update_market_data(force=False):
             save_market_cache("indices", market_cache["indices"])
 
         # 2. Rankings & Signals
-        symbols = []
-        for g in ['VN30', 'VN100', 'HNX30']:
-            try:
-                s = Listing().symbols_by_group(g)
-                if s is not None: symbols.extend(s.tolist())
-            except: pass
-        symbols = list(set(symbols)) or ['TCB', 'VCB', 'FPT', 'SSI', 'VNM', 'VIC', 'VHM', 'HPG']
+        cached_symbols, updated_at = get_market_cache("group_symbols")
+        if cached_symbols and updated_at and (datetime.now() - updated_at).total_seconds() < 86400:
+            symbols = cached_symbols
+        else:
+            symbols = []
+            for g in ['VN30', 'VN100', 'HNX30']:
+                try:
+                    s = Listing().symbols_by_group(g)
+                    if s is not None: symbols.extend(s.tolist())
+                except: pass
+            symbols = list(set(symbols))
+            if symbols:
+                save_market_cache("group_symbols", symbols)
+        symbols = symbols or ['TCB', 'VCB', 'FPT', 'SSI', 'VNM', 'VIC', 'VHM', 'HPG']
 
         def fetch_stock(symbol):
             try:
+                # Add a sleep to prevent hitting API burst rate limits
                 time.sleep(0.5)
-                df = Quote(symbol=symbol, source='vci').history(start=start_date, end=end_date)
+                df = get_stock_history_data(symbol, days=120)
                 if df is not None and len(df) >= 2:
                     prev, curr = df['close'].iloc[-2], df['close'].iloc[-1]
                     m = calculate_trend_metrics(df)
@@ -519,6 +533,9 @@ async def update_market_data(force=False):
                     print(f"[Derivatives] VN30F signal: {deriv_signal['signal_label']} ({deriv_signal['signal_score']})")
         except (Exception, SystemExit) as e:
             print(f"[Derivatives] Error: {e}")
+
+        if is_eod:
+            save_market_cache("last_eod_date", today_str)
 
         market_cache["last_updated"] = datetime.now().isoformat()
     except (Exception, SystemExit) as e: print(f"Error updating market: {e}")

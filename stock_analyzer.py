@@ -139,25 +139,28 @@ def get_stock_history_data(symbol, days=365):
             needs_update = True
         else:
             last_date = df.index.max().date()
-            # Logic:
-            # If Trading Time: We might want fresh data? 
-            # Actually history API (Daily) usually updates at EOD. 
-            # But let's follow user request: "Only pull real time data in the trading day time".
-            # For History, if it's trading time, maybe we want to catch yesterday's close if we missed it?
-            # Or if today is closed? 
-            # Simple rule: If not trading time, and we have data up to yesterday (or Friday), use DB.
             
+            # Smart Rate Limit Protection:
+            # During trading hours (09:00-15:45), we reuse the database data because yesterday's closed bar
+            # is already saved. The daily API updates at EOD. Therefore, we do not need to fetch from API
+            # if we have data up to yesterday (or within 3 days to account for weekends).
+            # This reduces history API calls to 0 during trading hours.
             if is_trading_time():
-                 # Even in trading time, daily history only updates EOD or next day usually.
-                 # But just in case API provides current day as a bar:
-                 if last_date < end_date:
-                     needs_update = True
+                # Only update if the data in DB is extremely stale (> 3 days old)
+                if (end_date - last_date).days > 3:
+                    needs_update = True
             else:
-                 # Outside trading time
-                 # If we have data up to "yesterday" (or today if market closed), we are good.
-                 # Only update if data is significantly stale (> 3 days old) to avoid daily API hits when market is closed
-                 if last_date < end_date and (end_date - last_date).days > 3:
-                     needs_update = True
+                # Outside trading hours (e.g. after-market EOD window 15:45-19:00 or weekends)
+                # We want to update once to fetch the newly closed bar for the current day.
+                # If we don't have today's bar, we update.
+                if last_date < end_date:
+                    # To prevent hitting API continuously, if today is weekend, we don't need today's bar
+                    if end_date.weekday() > 4:
+                        # On weekend, if we have Friday's bar (which is 1-2 days old), we don't need to update
+                        if (end_date - last_date).days > 2:
+                            needs_update = True
+                    else:
+                        needs_update = True
         
         if needs_update:
             # Fetch from API
@@ -173,12 +176,18 @@ def get_stock_history_data(symbol, days=365):
                 save_daily_bars(symbol, api_df)
                 # Re-fetch from DB to get consistent formatting/merged data
                 df = get_history(symbol, start_date=start_date, end_date=end_date)
+            # Add a tiny sleep to prevent burst rate limit
+            time.sleep(0.5)
         
         return df
         
-    except Exception as e:
+    except (Exception, SystemExit) as e:
         print(f"Error getting history for {symbol}: {e}")
-        return pd.DataFrame()
+        # Try fallback to whatever we have in DB
+        try:
+            return get_history(symbol, start_date=start_date, end_date=end_date)
+        except:
+            return pd.DataFrame()
 
 # --- Vietnam Market Transaction Costs ---
 VN_BUY_FEE = 0.0015    # 0.15% phí mua

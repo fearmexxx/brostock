@@ -11,17 +11,18 @@ import numpy as np
 from vnstock import Quote
 from datetime import datetime, timedelta
 from database import get_market_cache, save_market_cache
+from stock_analyzer import get_stock_history_data
 
 def get_vn30_data(days=120):
     """Fetch VN30 Index daily OHLCV data."""
     try:
-        end_date = datetime.now().strftime('%Y-%m-%d')
-        start_date = (datetime.now() - timedelta(days=days)).strftime('%Y-%m-%d')
-        q = Quote(symbol='VN30', source='vci')
-        df = q.history(start=start_date, end=end_date)
+        df = get_stock_history_data('VN30', days=days)
         if df is not None and len(df) >= 2:
+            # Reformat index or ensure columns are clean
+            df = df.reset_index()
             for col in ['open', 'high', 'low', 'close', 'volume']:
-                df[col] = pd.to_numeric(df[col], errors='coerce')
+                if col in df.columns:
+                    df[col] = pd.to_numeric(df[col], errors='coerce')
             return df
     except (Exception, SystemExit) as e:
         print(f"[Derivatives] Error fetching VN30 data: {e}")
