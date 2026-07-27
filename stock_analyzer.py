@@ -145,23 +145,14 @@ def get_stock_history_data(symbol, days=365):
         else:
             last_date = df.index.max().date()
             
-            # Smart Rate Limit Protection:
-            # During trading hours (09:00-15:45), we reuse the database data because yesterday's closed bar
-            # is already saved. The daily API updates at EOD. Therefore, we do not need to fetch from API
-            # if we have data up to yesterday (or within 3 days to account for weekends).
-            # This reduces history API calls to 0 during trading hours.
             if is_trading_time():
-                # Only update if the data in DB is extremely stale (> 3 days old)
-                if (end_date - last_date).days > 3:
-                    needs_update = True
+                # ALWAYS update during trading hours to get real-time price snapshots
+                needs_update = True
             else:
-                # Outside trading hours (e.g. after-market EOD window 15:45-19:00 or weekends)
-                # We want to update once to fetch the newly closed bar for the current day.
-                # If we don't have today's bar, we update.
+                # Outside trading hours, update if we are missing the current day's closed bar
                 if last_date < end_date:
-                    # To prevent hitting API continuously, if today is weekend, we don't need today's bar
                     if end_date.weekday() > 4:
-                        # On weekend, if we have Friday's bar (which is 1-2 days old), we don't need to update
+                        # On weekend, if we have Friday's bar, we don't need to update
                         if (end_date - last_date).days > 2:
                             needs_update = True
                     else:
