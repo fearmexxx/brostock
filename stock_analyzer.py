@@ -8,15 +8,18 @@ import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 import seaborn as sns
 from vnstock import Vnstock
-from vnstock import *
+from vnstock import Listing, Quote
 import time
 import warnings
+import logging
 import json
 from database import get_history, save_daily_bars, get_session, Symbol, get_market_cache, save_market_cache
 from datetime import datetime, timedelta, timezone
 
 # Disable unnecessary warnings | Tắt cảnh báo không cần thiết
 warnings.filterwarnings("ignore")
+
+logger = logging.getLogger(__name__)
 
 def format_currency(value):
     """Format currency with thousands separators"""
@@ -107,8 +110,10 @@ def get_intraday_data(symbol, max_retries=3):
                     df['time'] = pd.to_datetime(df['time'])
                 return df
             except: pass
-        # If no cache and API failed, re-raise
-        raise e
+        # If no cache and API failed, return empty DataFrame
+        # Let the caller (API endpoint) return a 404 rather than crashing with 500
+        logger.warning(f"[IntraDay] No data available for {symbol}: {e}")
+        return pd.DataFrame()
         
     # If we got here (e.g. data empty but no exception), return empty or fallback
     if has_cache:

@@ -179,16 +179,18 @@ def save_daily_bars(symbol, df):
             df['date'] = df.index.date
 
         # Convert to list of DailyBar objects
+        is_index = symbol.upper() in ['VNINDEX', 'HNXINDEX', 'VN30', 'UPINDEX'] or 'INDEX' in symbol.upper()
+        multiplier = 1 if is_index else 1000
+        
         bars = []
         for _, row in df.iterrows():
-            # Multiply prices by 1000 (vnstock returns in 1000s)
             bar = DailyBar(
                 symbol=symbol,
                 date=row['date'],
-                open=row.get('open', 0) * 1000,
-                high=row.get('high', 0) * 1000,
-                low=row.get('low', 0) * 1000,
-                close=row.get('close', 0) * 1000,
+                open=row.get('open', 0) * multiplier,
+                high=row.get('high', 0) * multiplier,
+                low=row.get('low', 0) * multiplier,
+                close=row.get('close', 0) * multiplier,
                 volume=row.get('volume', 0)
             )
             session.merge(bar) # merge handles upsert based on Primary Key (symbol, date)

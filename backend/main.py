@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, Depends
+from fastapi import FastAPI, HTTPException, Depends, Path
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import List, Optional
@@ -11,6 +11,7 @@ from concurrent.futures import ThreadPoolExecutor
 import asyncio
 import time
 import pandas as pd
+import numpy as np
 from dotenv import load_dotenv
 from telegram import Update
 from telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler
@@ -48,9 +49,12 @@ logger = logging.getLogger(__name__)
 app = FastAPI(title="BroStock API & Bot", version="2.0.0")
 
 # Enable CORS
+_raw_origins = os.getenv("ALLOWED_ORIGINS", "http://localhost:3000,http://localhost:3001")
+ALLOWED_ORIGINS = [o.strip() for o in _raw_origins.split(",") if o.strip()]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=ALLOWED_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -82,8 +86,6 @@ class StockAnalysisResponse(BaseModel):
 # --- Helpers ---
 
 def convert_numpy(obj):
-    import numpy as np
-    import pandas as pd
     if isinstance(obj, dict):
         return {k: convert_numpy(v) for k, v in obj.items()}
     elif isinstance(obj, list):
@@ -236,11 +238,17 @@ async def tg_price(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         intra_df = get_intraday_data(symbol)
         buy_vol, sell_vol, net_flow = 0, 0, 0
+        big_in, big_out, big_net = '0', '0', '0'
         if not intra_df.empty:
             p_df = preprocess_data(intra_df)
+            resampled_tg = aggregate_data(p_df)
+            summary_tg = calculate_summary(p_df, resampled_tg)
             buy_vol = p_df[p_df['match_type'] == 'Buy']['volume'].sum()
             sell_vol = p_df[p_df['match_type'] == 'Sell']['volume'].sum()
             net_flow = p_df[p_df['match_type'] == 'Buy']['value'].sum() - p_df[p_df['match_type'] == 'Sell']['value'].sum()
+            big_in = summary_tg.get('Dòng tiền Cá mập vào (VND)', '0')
+            big_out = summary_tg.get('Dòng tiền Cá mập ra (VND)', '0')
+            big_net = summary_tg.get('Dòng tiền Cá mập ròng (VND)', '0')
 
         # Emojis based on -100 to +100 score
         if score >= 70: emoji = "🚀🚀"
@@ -254,14 +262,11 @@ async def tg_price(update: Update, context: ContextTypes.DEFAULT_TYPE):
         pred_vn = {'UPWARD': 'TĂNG', 'DOWNWARD': 'GIẢM', 'SIDEWAYS': 'ĐI NGANG'}.get(metrics.get('prediction_label'), 'ĐI NGANG')
         regime_vn = {'Trending': 'CÓ XU HƯỚNG', 'Weak Trend': 'XU HƯỚNG YẾU', 'Range': 'ĐI NGANG (RANGE)'}.get(metrics.get('market_regime'), 'KHÔNG RÕ')
 
-        # Smart Money Flow
-        big_in = summary.get('Dòng tiền Cá mập vào (VND)', '0')
-        big_out = summary.get('Dòng tiền Cá mập ra (VND)', '0')
-        big_net = summary.get('Dòng tiền Cá mập ròng (VND)', '0')
-
         # Risk Score
         risk_score = metrics.get('risk_score', 0)
         risk_label = metrics.get('risk_label', 'N/A')
+
+
 
         text = (
             f"{emoji} *{symbol} - {label_vn}* ({score:+.0f})\n"
@@ -331,7 +336,7 @@ async def daily_report(context: ContextTypes.DEFAULT_TYPE):
         text += f"\n💎 *Cổ phiếu nổi bật:* *{top['symbol']}* (Điểm: {top['signal_score']})\n"
     for chat_id in get_subscribers():
         try: await context.bot.send_message(chat_id=chat_id, text=text, parse_mode='Markdown')
-        except: pass
+        except Exception as e: logger.warning(f"[Telegram] Failed to send daily report to {chat_id}: {e}")
 
 # --- Market Data Aggregator ---
 
@@ -364,7 +369,8 @@ async def update_market_data(force=False):
                 if df is not None and len(df) >= 2:
                     prev, curr = df['close'].iloc[-2], df['close'].iloc[-1]
                     indices_data[idx] = {"value": float(curr), "change": float(curr - prev), "pct_change": float((curr/prev-1)*100), "volume": int(df['volume'].iloc[-1])}
-            except: pass
+            except (Exception, SystemExit) as e:
+                logger.warning(f"[Indices] Failed to fetch {idx}: {e}")
         if indices_data:
             market_cache["indices"] = convert_numpy(indices_data)
             save_market_cache("indices", market_cache["indices"])
@@ -379,29 +385,30 @@ async def update_market_data(force=False):
                 try:
                     s = Listing().symbols_by_group(g)
                     if s is not None: symbols.extend(s.tolist())
-                except: pass
+                except (Exception, SystemExit) as e:
+                    logger.warning(f"[Listing] Failed to fetch group {g}: {e}")
             symbols = list(set(symbols))
             if symbols:
                 save_market_cache("group_symbols", symbols)
         symbols = symbols or ['TCB', 'VCB', 'FPT', 'SSI', 'VNM', 'VIC', 'VHM', 'HPG']
 
-        def fetch_stock(symbol):
+        def fetch_stock(sym):
             try:
                 # Add a sleep to prevent hitting API burst rate limits
                 time.sleep(0.5)
-                df = get_stock_history_data(symbol, days=120)
+                df = get_stock_history_data(sym, days=120)
                 if df is not None and len(df) >= 2:
                     prev, curr = df['close'].iloc[-2], df['close'].iloc[-1]
                     m = calculate_trend_metrics(df)
                     lt = calculate_longterm_score(df)
                     return {
-                        "symbol": symbol, 
-                        "price": float(curr)*1000, 
-                        "change": float(curr-prev)*1000, 
-                        "pct_change": float((curr/prev-1)*100), 
-                        "volume": int(df['volume'].iloc[-1]), 
-                        "signal_score": m.get('signal_score', 0), 
-                        "signal_label": m.get('signal_label', 'Neutral'), 
+                        "symbol": sym,
+                        "price": float(curr)*1000,
+                        "change": float(curr-prev)*1000,
+                        "pct_change": float((curr/prev-1)*100),
+                        "volume": int(df['volume'].iloc[-1]),
+                        "signal_score": m.get('signal_score', 0),
+                        "signal_label": m.get('signal_label', 'Neutral'),
                         "trend_strength": m.get('signal_score', 0),
                         "factors": m.get('factors', {}),
                         "prediction_5d_pct": m.get('prediction_5d_pct', 0),
@@ -425,9 +432,11 @@ async def update_market_data(force=False):
                         "lt_stop_pct": lt.get('lt_stop_pct', 0),
                         "lt_rr_ratio": lt.get('lt_rr_ratio', 0)
                     }
-            except: return None
+            except (Exception, SystemExit) as e:
+                logger.warning(f"[FetchStock] {sym}: {e}")
+                return None
 
-        with ThreadPoolExecutor(max_workers=1) as ex:
+        with ThreadPoolExecutor(max_workers=3) as ex:
             valid_data = [r for r in list(ex.map(fetch_stock, symbols)) if r]
         
         if valid_data:
@@ -568,7 +577,8 @@ async def startup_event():
             tg_app.add_handler(CommandHandler('unsubscribe', tg_unsubscribe))
             
             if tg_app.job_queue:
-                tg_app.job_queue.run_daily(daily_report, time=dt_time(hour=9, minute=0)) # 16:00 ICT
+                # 16:00 ICT = 09:00 UTC — send EOD market summary to subscribers
+                tg_app.job_queue.run_daily(daily_report, time=dt_time(hour=9, minute=0, tzinfo=timezone.utc))
 
             await tg_app.initialize()
             await tg_app.start()
@@ -620,7 +630,7 @@ async def get_derivatives_signal():
     return {"signal": signal, "history": history[-7:]}
 
 @app.get("/api/stock/{symbol}", response_model=StockAnalysisResponse)
-async def analyze_stock(symbol: str):
+async def analyze_stock(symbol: str = Path(..., pattern="^[A-Za-z0-9]{1,10}$", description="Stock ticker symbol (1-10 alphanumeric chars)")):
     symbol = symbol.upper()
     try:
         raw = get_intraday_data(symbol)

@@ -1,8 +1,8 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { RefreshCcw } from "lucide-react"
+import { RefreshCcw, Loader2, AlertCircle } from "lucide-react"
 import { Line, Bar, ComposedChart, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend, CartesianGrid } from "recharts"
 
 interface StockData {
@@ -37,23 +37,50 @@ interface StockData {
   historical_data: Array<{ time: string; close: number; MA5: number; MA20: number; volume: number }>
 }
 
-export function DashboardClient({ data }: { data: StockData | null }) {
-  const [stock, setStock] = useState<StockData | null>(data)
-  const [loading, setLoading] = useState(false)
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+
+export function DashboardClient({ symbol }: { symbol: string }) {
+  const [stock, setStock] = useState<StockData | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [timeRange, setTimeRange] = useState<"1D" | "7D" | "30D">("1D")
+
+  const fetchData = async (sym: string) => {
+    setLoading(true)
+    setError(null)
+    try {
+      const res = await fetch(`${API_URL}/api/stock/${sym}`)
+      if (!res.ok) {
+        if (res.status === 404) setError("Không tìm thấy mã hoặc không có dữ liệu.")
+        else setError("Lỗi khi tải dữ liệu cổ phiếu.")
+      } else {
+        const data = await res.json()
+        setStock(data)
+      }
+    } catch {
+      setError("Lỗi kết nối tới máy chủ.")
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    if (symbol) fetchData(symbol)
+  }, [symbol])
+
+  const refreshData = async () => {
+    if (symbol) await fetchData(symbol)
+  }
 
   const parseVND = (str: string) => {
     if (!str) return 0
     return parseFloat(str.replace(/\./g, '').replace(/,/g, ''))
   }
 
-  const buySellRatio = stock?.summary?.['Tỷ lệ khối lượng trung bình mua/bán']
-
   // Prepare data based on Time Range
   const getChartData = () => {
     if (!stock) return []
     if (timeRange === "1D") return stock.intraday_data || []
-    
     const hist = stock.historical_data || []
     if (timeRange === "7D") return hist.slice(-7)
     if (timeRange === "30D") return hist.slice(-30)
@@ -62,22 +89,52 @@ export function DashboardClient({ data }: { data: StockData | null }) {
 
   const chartData = getChartData()
 
-  // Handler to refresh data client-side
-  const refreshData = async () => {
-      if(!stock) return
-      setLoading(true)
-      try {
-          const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-          const res = await fetch(`${API_URL}/api/stock/${stock.symbol}`)
-          if(res.ok) {
-              const newData = await res.json()
-              setStock(newData)
-          }
-      } catch(e) { console.error(e) }
-      finally { setLoading(false) }
+  // --- Loading skeleton ---
+  if (loading && !stock) {
+    return (
+      <div className="space-y-4 pt-2 animate-pulse">
+        <Card className="h-16 bg-gray-100 border-none" />
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+          <div className="lg:col-span-3 space-y-6">
+            <Card className="h-[500px] bg-gray-100 border-none">
+              <CardContent className="flex items-center justify-center h-full">
+                <div className="flex flex-col items-center gap-3 text-gray-400">
+                  <Loader2 className="animate-spin" size={32} />
+                  <p className="text-sm font-medium">Đang tải dữ liệu {symbol}...</p>
+                </div>
+              </CardContent>
+            </Card>
+            <div className="grid grid-cols-2 gap-6">
+              <Card className="h-48 bg-gray-100 border-none" />
+              <Card className="h-48 bg-gray-100 border-none" />
+            </div>
+          </div>
+          <div className="space-y-6">
+            <Card className="h-96 bg-gray-100 border-none" />
+            <Card className="h-32 bg-gray-100 border-none" />
+          </div>
+        </div>
+      </div>
+    )
   }
 
-  if (!stock) return <p className="text-gray-500">Không có dữ liệu.</p>
+  // --- Error state ---
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20 gap-4 text-gray-500">
+        <AlertCircle size={40} className="text-red-400" />
+        <p className="text-lg font-semibold">{error}</p>
+        <button
+          onClick={refreshData}
+          className="px-4 py-2 bg-blue-900 text-white rounded shadow hover:bg-blue-800 transition text-sm"
+        >
+          Thử lại
+        </button>
+      </div>
+    )
+  }
+
+  if (!stock) return null
 
   return (
         <div className="space-y-4 pt-2">
@@ -130,9 +187,10 @@ export function DashboardClient({ data }: { data: StockData | null }) {
                                 </button>
                             ))}
                         </div>
-                        <button 
+                        <button
                             onClick={refreshData}
-                            className="p-2 text-slate-500 hover:text-blue-600 transition"
+                            disabled={loading}
+                            className="p-2 text-slate-500 hover:text-blue-600 transition disabled:opacity-50"
                             title="Làm mới"
                         >
                             <RefreshCcw size={16} className={loading ? "animate-spin" : ""} />
@@ -155,7 +213,8 @@ export function DashboardClient({ data }: { data: StockData | null }) {
                         </CardTitle>
                     </CardHeader>
                     <CardContent className="h-[400px]">
-                        {stock && chartData.length > 0 ? (
+                        {chartData.length > 0 ? (
+                          <div style={{ width: '100%', height: '100%', minHeight: 0 }}>
                           <ResponsiveContainer width="100%" height="100%">
                             {timeRange === '1D' ? (
                                 <ComposedChart data={chartData}>
@@ -205,10 +264,11 @@ export function DashboardClient({ data }: { data: StockData | null }) {
                                     <Bar yAxisId="right" dataKey="volume" fill="#94a3b8" name="Khối lượng" opacity={0.3} />
                                 </ComposedChart>
                             )}
-                          </ResponsiveContainer>
+                           </ResponsiveContainer>
+                          </div>
                         ) : (
                           <div className="h-full flex items-center justify-center">
-                             <p className="text-gray-400">Đang tải biểu đồ...</p>
+                             <p className="text-gray-400">Không có dữ liệu biểu đồ.</p>
                           </div>
                         )}
                     </CardContent>
