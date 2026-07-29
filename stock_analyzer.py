@@ -160,43 +160,41 @@ def get_stock_history_data(symbol, days=365):
         
         if needs_update:
             api_df = None
+            # 1. Primary: Try DNSE / Entrade API first (Ultra-fast, no 20 req/min guest limit)
             try:
-                quote = Quote(symbol=symbol, source='vci')
-                api_df = quote.history(start=start_date.strftime('%Y-%m-%d'), 
-                                       end=end_date.strftime('%Y-%m-%d'), 
-                                       interval='1D')
-            except Exception as e:
-                logger.warning(f"[API Error] vnstock failed for {symbol}: {e}. Trying fallback...")
-                
-            # Fallback to DNSE / Entrade if vnstock fails or returns empty
+                import requests
+                ts_from = int(datetime.strptime(start_date.strftime('%Y-%m-%d'), '%Y-%m-%d').timestamp())
+                ts_to = int(datetime.now().timestamp())
+                url = f"https://services.entrade.com.vn/chart-api/v2/ohlcs/stock?from={ts_from}&to={ts_to}&symbol={symbol}&resolution=1D"
+                res = requests.get(url, timeout=4).json()
+                if 't' in res and len(res['t']) > 0:
+                    fallback_df = pd.DataFrame(res)
+                    fallback_df.rename(columns={'t': 'time', 'o': 'open', 'h': 'high', 'l': 'low', 'c': 'close', 'v': 'volume'}, inplace=True)
+                    if 'nextTime' in fallback_df.columns:
+                        fallback_df.drop(columns=['nextTime'], inplace=True)
+                    # Entrade prices are in 1k VND, convert to 1 VND
+                    for col in ['open', 'high', 'low', 'close']:
+                        fallback_df[col] = fallback_df[col] * 1000
+                    fallback_df['time'] = pd.to_datetime(fallback_df['time'], unit='s').dt.tz_localize('UTC').dt.tz_convert('Asia/Ho_Chi_Minh').dt.strftime('%Y-%m-%d')
+                    api_df = fallback_df
+            except Exception as ex:
+                logger.debug(f"[Entrade Primary] Failed for {symbol}: {ex}")
+
+            # 2. Fallback: Try vnstock if Entrade didn't return data
             if api_df is None or api_df.empty:
                 try:
-                    import requests
-                    # Convert dates to timestamps
-                    ts_from = int(datetime.strptime(start_date.strftime('%Y-%m-%d'), '%Y-%m-%d').timestamp())
-                    ts_to = int(datetime.now().timestamp())
-                    url = f"https://services.entrade.com.vn/chart-api/v2/ohlcs/stock?from={ts_from}&to={ts_to}&symbol={symbol}&resolution=1D"
-                    res = requests.get(url, timeout=5).json()
-                    if 't' in res and len(res['t']) > 0:
-                        fallback_df = pd.DataFrame(res)
-                        fallback_df.rename(columns={'t': 'time', 'o': 'open', 'h': 'high', 'l': 'low', 'c': 'close', 'v': 'volume'}, inplace=True)
-                        if 'nextTime' in fallback_df.columns:
-                            fallback_df.drop(columns=['nextTime'], inplace=True)
-                        # Entrade prices are in 1k VND, vnstock expects 1 VND
-                        for col in ['open', 'high', 'low', 'close']:
-                            fallback_df[col] = fallback_df[col] * 1000
-                        # Convert timestamp to YYYY-MM-DD
-                        fallback_df['time'] = pd.to_datetime(fallback_df['time'], unit='s').dt.tz_localize('UTC').dt.tz_convert('Asia/Ho_Chi_Minh').dt.strftime('%Y-%m-%d')
-                        api_df = fallback_df
-                except Exception as ex:
-                    logger.warning(f"[Fallback Error] Entrade failed for {symbol}: {ex}")
+                    quote = Quote(symbol=symbol, source='vci')
+                    api_df = quote.history(start=start_date.strftime('%Y-%m-%d'), 
+                                           end=end_date.strftime('%Y-%m-%d'), 
+                                           interval='1D')
+                except Exception as e:
+                    logger.warning(f"[vnstock Fallback] Failed for {symbol}: {e}")
 
             if api_df is not None and not api_df.empty:
                 save_daily_bars(symbol, api_df)
                 # Re-fetch from DB to get consistent formatting/merged data
                 df = get_history(symbol, start_date=start_date, end_date=end_date)
-            # Add a tiny sleep to prevent burst rate limit
-            time.sleep(0.5)
+            time.sleep(0.1)
         
         return df
         

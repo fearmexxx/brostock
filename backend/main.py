@@ -15,6 +15,7 @@ import numpy as np
 from dotenv import load_dotenv
 from telegram import Update
 from telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler
+from telegram.error import Conflict
 
 # Force UTF-8 for stdout/stderr to handle emojis from libraries on Windows
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
@@ -558,16 +559,23 @@ async def startup_event():
     
     # Fetch token at startup to ensure env is ready
     token = os.getenv("TELEGRAM_BOT_TOKEN")
-    
-    # Diagnostic: Log available keys related to Telegram (safely)
-    env_keys = [k for k in os.environ.keys() if "BOT" in k or "TELEGRAM" in k]
-    logger.info(f"Detected environment keys: {env_keys}")
+    enable_bot = os.getenv("ENABLE_TELEGRAM_BOT", "true").lower() in ("true", "1", "yes")
 
     # Initialize Telegram Bot
-    if token:
+    if token and enable_bot:
         try:
             logger.info(f"Starting Telegram Bot with token starting with: {token[:4]}...")
             tg_app = ApplicationBuilder().token(token).build()
+
+            async def tg_error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
+                if isinstance(context.error, Conflict):
+                    logger.warning("[Telegram Bot] Conflict error detected: another bot instance is polling with this token. Stopping polling on this instance.")
+                    if tg_app.updater and tg_app.updater.running:
+                        await tg_app.updater.stop()
+                else:
+                    logger.error(f"[Telegram Bot] Error occurred: {context.error}")
+
+            tg_app.add_error_handler(tg_error_handler)
             tg_app.add_handler(CommandHandler('start', tg_start))
             tg_app.add_handler(CommandHandler('help', tg_start))
             tg_app.add_handler(CommandHandler('price', tg_price))
@@ -582,13 +590,13 @@ async def startup_event():
 
             await tg_app.initialize()
             await tg_app.start()
-            await tg_app.updater.start_polling()
+            await tg_app.updater.start_polling(drop_pending_updates=True)
             app.state.tg_app = tg_app
             logger.info("Telegram Bot is polling successfully.")
         except Exception as e:
             logger.error(f"Failed to start Telegram Bot: {e}", exc_info=True)
     else:
-        logger.warning("TELEGRAM_BOT_TOKEN not found in environment.")
+        logger.info("Telegram Bot disabled or TELEGRAM_BOT_TOKEN not provided.")
     
     asyncio.create_task(periodic_update())
 
