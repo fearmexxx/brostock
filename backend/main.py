@@ -50,12 +50,13 @@ logger = logging.getLogger(__name__)
 app = FastAPI(title="BroStock API & Bot", version="2.0.0")
 
 # Enable CORS
-_raw_origins = os.getenv("ALLOWED_ORIGINS", "http://localhost:3000,http://localhost:3001")
+_raw_origins = os.getenv("ALLOWED_ORIGINS", "")
 ALLOWED_ORIGINS = [o.strip() for o in _raw_origins.split(",") if o.strip()]
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=ALLOWED_ORIGINS,
+    allow_origins=ALLOWED_ORIGINS if ALLOWED_ORIGINS else ["*"],
+    allow_origin_regex=r"https://.*\.vercel\.app|http://localhost:.*",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -217,9 +218,17 @@ async def tg_price(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     symbol = context.args[0].upper()
     try:
-        df = get_stock_history_data(symbol)
+        # First query directly from internal SQLite database
+        start_date = (datetime.now() - timedelta(days=365)).date()
+        end_date = datetime.now().date()
+        df = get_history(symbol, start_date=start_date, end_date=end_date)
+        
+        # If DB is empty, fetch using helper
         if df.empty:
-            await update.message.reply_text(f"❌ Không tìm thấy mã {symbol}.")
+            df = get_stock_history_data(symbol)
+            
+        if df.empty:
+            await update.message.reply_text(f"❌ Không tìm thấy mã {symbol} trong cơ sở dữ liệu.")
             return
         
         metrics = calculate_trend_metrics(df)
@@ -237,19 +246,23 @@ async def tg_price(update: Update, context: ContextTypes.DEFAULT_TYPE):
             'Strong Sell': 'BÁN MẠNH'
         }.get(metrics.get('signal_label'), 'TRUNG LẬP')
         
-        intra_df = get_intraday_data(symbol)
+        # Try fetching intraday, fallback safely to defaults if external API fails
         buy_vol, sell_vol, net_flow = 0, 0, 0
         big_in, big_out, big_net = '0', '0', '0'
-        if not intra_df.empty:
-            p_df = preprocess_data(intra_df)
-            resampled_tg = aggregate_data(p_df)
-            summary_tg = calculate_summary(p_df, resampled_tg)
-            buy_vol = p_df[p_df['match_type'] == 'Buy']['volume'].sum()
-            sell_vol = p_df[p_df['match_type'] == 'Sell']['volume'].sum()
-            net_flow = p_df[p_df['match_type'] == 'Buy']['value'].sum() - p_df[p_df['match_type'] == 'Sell']['value'].sum()
-            big_in = summary_tg.get('Dòng tiền Cá mập vào (VND)', '0')
-            big_out = summary_tg.get('Dòng tiền Cá mập ra (VND)', '0')
-            big_net = summary_tg.get('Dòng tiền Cá mập ròng (VND)', '0')
+        try:
+            intra_df = get_intraday_data(symbol)
+            if not intra_df.empty:
+                p_df = preprocess_data(intra_df)
+                resampled_tg = aggregate_data(p_df)
+                summary_tg = calculate_summary(p_df, resampled_tg)
+                buy_vol = p_df[p_df['match_type'] == 'Buy']['volume'].sum()
+                sell_vol = p_df[p_df['match_type'] == 'Sell']['volume'].sum()
+                net_flow = p_df[p_df['match_type'] == 'Buy']['value'].sum() - p_df[p_df['match_type'] == 'Sell']['value'].sum()
+                big_in = summary_tg.get('Dòng tiền Cá mập vào (VND)', '0')
+                big_out = summary_tg.get('Dòng tiền Cá mập ra (VND)', '0')
+                big_net = summary_tg.get('Dòng tiền Cá mập ròng (VND)', '0')
+        except Exception as intra_e:
+            logger.warning(f"[Telegram /price] Could not fetch intraday stats for {symbol}: {intra_e}")
 
         # Emojis based on -100 to +100 score
         if score >= 70: emoji = "🚀🚀"
