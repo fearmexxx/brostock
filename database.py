@@ -179,8 +179,7 @@ def save_daily_bars(symbol, df):
             df['date'] = df.index.date
 
         # Convert to list of DailyBar objects
-        is_index = symbol.upper() in ['VNINDEX', 'HNXINDEX', 'VN30', 'UPINDEX'] or 'INDEX' in symbol.upper()
-        multiplier = 1 if is_index else 1000
+        multiplier = 1
         
         bars = []
         for _, row in df.iterrows():
