@@ -673,8 +673,8 @@ export default function AlphaPage() {
                           </div>
                           <div className="font-mono text-xs text-gray-600 font-semibold">
                             Lời TB: <span className={(s.bt_avg_return ?? 0) >= 0 ? "text-green-600 font-black" : "text-red-600 font-black"}>
-                              {(s.bt_avg_return ?? 0) >= 0 ? "+" : ""}{s.bt_avg_return ?? 0}%
-                            </span> | PF: <span className="font-black text-gray-800">{s.bt_profit_factor ?? 0}</span>
+                              {(s.bt_avg_return ?? 0) >= 0 ? "+" : ""}{(s.bt_avg_return ?? 0).toFixed(2)}%
+                            </span> | PF: <span className="font-black text-gray-800">{(s.bt_profit_factor ?? 0).toFixed(2)}</span>
                           </div>
                         </div>
                       </td>
@@ -788,8 +788,8 @@ export default function AlphaPage() {
                           </div>
                           <div className="font-mono text-xs text-gray-600 font-semibold">
                             Lời TB: <span className={(s.lt_bt_avg_return ?? 0) >= 0 ? "text-green-600 font-black" : "text-red-600 font-black"}>
-                              {(s.lt_bt_avg_return ?? 0) >= 0 ? "+" : ""}{s.lt_bt_avg_return ?? 0}%
-                            </span> | MaxDD: <span className="font-black text-red-600">{s.lt_bt_max_drawdown ?? 0}%</span>
+                              {(s.lt_bt_avg_return ?? 0) >= 0 ? "+" : ""}{(s.lt_bt_avg_return ?? 0).toFixed(2)}%
+                            </span> | MaxDD: <span className="font-black text-red-600">{(s.lt_bt_max_drawdown ?? 0).toFixed(2)}%</span>
                           </div>
                         </div>
                       </td>
