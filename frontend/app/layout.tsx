@@ -44,6 +44,7 @@ export default function RootLayout({
                             <Link href="/derivatives" className="hover:bg-blue-700 px-3 py-2 rounded-md text-sm font-medium text-emerald-300 font-bold">Phái sinh</Link>
                             <Link href="/portfolio" className="hover:bg-blue-700 px-3 py-2 rounded-md text-sm font-medium">Danh mục</Link>
                             <Link href="/backtest" className="hover:bg-blue-700 px-3 py-2 rounded-md text-sm font-medium">Kiểm thử</Link>
+                            <Link href="/doc" className="hover:bg-blue-700 px-3 py-2 rounded-md text-sm font-medium text-cyan-300 font-bold">Thuật toán (DOC)</Link>
                         </div>
                     </div>
                 </div>
