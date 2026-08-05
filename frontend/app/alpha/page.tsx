@@ -563,67 +563,67 @@ export default function AlphaPage() {
               </div>
             ) : mode === "swing" ? (
               /* SWING TRADING TABLE VIEW */
-              <table className="w-full text-xs text-left border-collapse text-gray-700">
-                <thead className="bg-gray-50 text-gray-700 uppercase text-[11px] font-bold tracking-tight border-b border-gray-200 sticky top-0">
+              <table className="w-full text-sm text-left border-collapse text-gray-800">
+                <thead className="bg-gray-100/80 text-gray-800 uppercase text-xs font-black tracking-tight border-b border-gray-200 sticky top-0">
                   <tr>
-                    <th className="px-2 py-2.5 text-center w-8">#</th>
-                    <th className="px-2 py-2.5">Mã</th>
-                    <th className="px-2 py-2.5 text-right">Giá</th>
-                    <th className="px-2 py-2.5 text-right">%</th>
+                    <th className="px-1.5 py-2 text-center w-7">#</th>
+                    <th className="px-1.5 py-2">Mã</th>
+                    <th className="px-1.5 py-2 text-right">Giá</th>
+                    <th className="px-1.5 py-2 text-right">%</th>
                     <th 
-                      className="px-2 py-2.5 text-right cursor-pointer hover:text-gray-900 transition select-none"
+                      className="px-1.5 py-2 text-right cursor-pointer hover:text-gray-900 transition select-none"
                       onClick={() => handleSort("volume")}
                     >
                       <div className="flex items-center justify-end gap-1">KL <SortIcon field="volume" /></div>
                     </th>
                     <th 
-                      className="px-2 py-2.5 text-center cursor-pointer hover:text-gray-900 transition select-none"
+                      className="px-1.5 py-2 text-center cursor-pointer hover:text-gray-900 transition select-none"
                       onClick={() => handleSort("conviction")}
                     >
                       <div className="flex items-center justify-center gap-1">Conviction <SortIcon field="conviction" /></div>
                     </th>
-                    <th className="px-2 py-2.5 text-center">Khuyến nghị</th>
-                    <th className="px-2 py-2.5 text-right text-green-700">Mục tiêu (Net)</th>
-                    <th className="px-2 py-2.5 text-right text-red-700">Cắt lỗ (Net)</th>
+                    <th className="px-1.5 py-2 text-center">Khuyến nghị</th>
+                    <th className="px-1.5 py-2 text-right text-green-700">Mục tiêu (Net)</th>
+                    <th className="px-1.5 py-2 text-right text-red-700">Cắt lỗ (Net)</th>
                     <th 
-                      className="px-2 py-2.5 text-center cursor-pointer hover:text-gray-900 transition select-none"
+                      className="px-1.5 py-2 text-center cursor-pointer hover:text-gray-900 transition select-none"
                       onClick={() => handleSort("rr_ratio")}
                     >
                       <div className="flex items-center justify-center gap-1">R:R <SortIcon field="rr_ratio" /></div>
                     </th>
                     <th 
-                      className="px-2 py-2.5 text-center cursor-pointer hover:text-gray-900 transition select-none"
+                      className="px-1.5 py-2 text-center cursor-pointer hover:text-gray-900 transition select-none"
                       onClick={() => handleSort("outlook")}
                     >
                       <div className="flex items-center justify-center gap-1">5D <SortIcon field="outlook" /></div>
                     </th>
-                    <th className="px-2 py-2.5 text-center text-blue-900">Backtest (T+15)</th>
+                    <th className="px-1.5 py-2 text-center text-blue-900">Backtest (T+15)</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
                   {sortedStocks.map((s, index) => (
-                    <tr key={s.symbol} className="hover:bg-blue-50/50 transition duration-100">
-                      <td className="px-2 py-2.5 text-center font-mono text-xs text-gray-400">
+                    <tr key={s.symbol} className="hover:bg-blue-50/60 transition duration-100">
+                      <td className="px-1.5 py-1.5 text-center font-mono text-xs text-gray-400 font-semibold">
                         {index + 1}
                       </td>
-                      <td className="px-2 py-2.5">
-                        <Link href={`/?symbol=${s.symbol}`} className="font-black text-sm text-blue-900 hover:underline tracking-wider">
+                      <td className="px-1.5 py-1.5">
+                        <Link href={`/?symbol=${s.symbol}`} className="font-black text-base text-blue-950 hover:underline tracking-wider">
                           {s.symbol}
                         </Link>
                       </td>
-                      <td className="px-2 py-2.5 text-right font-extrabold font-mono text-gray-900 text-sm">
+                      <td className="px-1.5 py-1.5 text-right font-black font-mono text-gray-900 text-base">
                         {formatVnPrice(s.price)}
                       </td>
-                      <td className="px-2 py-2.5 text-right font-mono text-xs">
+                      <td className="px-1.5 py-1.5 text-right font-mono text-sm">
                         <span className={`font-black ${s.pct_change >= 0 ? "text-green-600" : "text-red-600"}`}>
                           {s.pct_change >= 0 ? "+" : ""}{s.pct_change.toFixed(2)}%
                         </span>
                       </td>
-                      <td className="px-2 py-2.5 text-right font-mono font-bold text-gray-600 text-xs">
+                      <td className="px-1.5 py-1.5 text-right font-mono font-bold text-gray-600 text-xs">
                         {(s.volume / 1000000).toFixed(1)}M
                       </td>
-                      <td className="px-2 py-2.5 text-center">
-                        <div className={`inline-block px-2 py-0.5 rounded font-mono font-black text-xs ${
+                      <td className="px-1.5 py-1.5 text-center">
+                        <div className={`inline-block px-2.5 py-1 rounded font-mono font-black text-sm ${
                           s.signal_score >= 25 ? "bg-green-100 text-green-800" :
                           s.signal_score <= -25 ? "bg-red-100 text-red-800" :
                           "bg-gray-100 text-gray-600"
@@ -631,50 +631,50 @@ export default function AlphaPage() {
                           {s.signal_score > 0 ? "+" : ""}{s.signal_score}
                         </div>
                       </td>
-                      <td className="px-2 py-2.5 text-center">
-                        <span className={`px-2 py-1 rounded text-[10px] font-black uppercase inline-block shadow-sm tracking-wide ${getActionBadge(s.action)}`}>
+                      <td className="px-1.5 py-1.5 text-center">
+                        <span className={`px-2.5 py-1 rounded text-xs font-black uppercase inline-block shadow-sm tracking-wide ${getActionBadge(s.action)}`}>
                           {getActionLabel(s.action)}
                         </span>
                       </td>
-                      <td className="px-2 py-2.5 text-right font-mono text-xs">
-                        <div className="text-green-700 font-extrabold">{formatVnPrice(s.target_price)}</div>
-                        <div className="text-[10px] text-green-600 font-bold">+{s.target_pct}%</div>
+                      <td className="px-1.5 py-1.5 text-right font-mono">
+                        <div className="text-green-700 font-black text-sm">{formatVnPrice(s.target_price)}</div>
+                        <div className="text-xs text-green-600 font-extrabold">+{s.target_pct}%</div>
                       </td>
-                      <td className="px-2 py-2.5 text-right font-mono text-xs">
-                        <div className="text-red-600 font-extrabold">{formatVnPrice(s.stop_loss)}</div>
-                        <div className="text-[10px] text-red-500 font-bold">{s.stop_loss_pct}%</div>
+                      <td className="px-1.5 py-1.5 text-right font-mono">
+                        <div className="text-red-600 font-black text-sm">{formatVnPrice(s.stop_loss)}</div>
+                        <div className="text-xs text-red-500 font-extrabold">{s.stop_loss_pct}%</div>
                       </td>
-                      <td className="px-2 py-2.5 text-center">
-                        <span className={`font-mono font-bold text-xs ${getRRColor(s.risk_reward_ratio)}`}>
+                      <td className="px-1.5 py-1.5 text-center">
+                        <span className={`font-mono font-black text-sm ${getRRColor(s.risk_reward_ratio)}`}>
                           {s.risk_reward_ratio.toFixed(1)}:1
                         </span>
                       </td>
-                      <td className="px-2 py-2.5 text-center">
-                        <div className={`font-black font-mono text-xs ${
+                      <td className="px-1.5 py-1.5 text-center">
+                        <div className={`font-black font-mono text-sm ${
                           s.prediction_5d_pct >= 0 ? "text-green-600" : "text-red-600"
                         }`}>
                           {s.prediction_5d_pct >= 0 ? "+" : ""}{s.prediction_5d_pct.toFixed(2)}%
                         </div>
-                        <div className="text-[9px] font-bold uppercase tracking-wider text-gray-400">
+                        <div className="text-[10px] font-black uppercase tracking-wider text-gray-400">
                           {s.prediction_label === "UPWARD" ? "TĂNG" : s.prediction_label === "DOWNWARD" ? "GIẢM" : "NGANG"}
                         </div>
                       </td>
-                      <td className="px-2 py-2.5 text-center">
+                      <td className="px-1.5 py-1.5 text-center">
                         <div className="flex flex-col items-center gap-0.5">
-                          <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase inline-block shadow-sm ${
+                          <span className={`px-2.5 py-0.5 rounded text-xs font-black uppercase inline-block shadow-sm ${
                             (s.real_money_confidence ?? 0) >= 70 ? "bg-emerald-600 text-white ring-1 ring-emerald-400/50" :
-                            (s.real_money_confidence ?? 0) >= 50 ? "bg-amber-500 text-black font-extrabold" :
+                            (s.real_money_confidence ?? 0) >= 50 ? "bg-amber-500 text-black font-black" :
                             "bg-red-500 text-white"
                           }`}>
                             {s.confidence_label || "RỦI RO"} ({s.real_money_confidence ?? 0}đ)
                           </span>
-                          <div className="font-mono text-xs text-gray-700 font-bold">
+                          <div className="font-mono text-xs text-gray-800 font-bold">
                             Win: <span className="text-emerald-700 font-black">{s.bt_win_rate ?? 0}%</span> ({s.bt_winning_count ?? 0}/{s.bt_trade_count ?? 0})
                           </div>
-                          <div className="font-mono text-[10px] text-gray-600 font-semibold">
-                            Lời TB: <span className={(s.bt_avg_return ?? 0) >= 0 ? "text-green-600 font-extrabold" : "text-red-600 font-extrabold"}>
+                          <div className="font-mono text-xs text-gray-600 font-semibold">
+                            Lời TB: <span className={(s.bt_avg_return ?? 0) >= 0 ? "text-green-600 font-black" : "text-red-600 font-black"}>
                               {(s.bt_avg_return ?? 0) >= 0 ? "+" : ""}{s.bt_avg_return ?? 0}%
-                            </span> | PF: <span className="font-extrabold text-gray-800">{s.bt_profit_factor ?? 0}</span>
+                            </span> | PF: <span className="font-black text-gray-800">{s.bt_profit_factor ?? 0}</span>
                           </div>
                         </div>
                       </td>
@@ -684,62 +684,62 @@ export default function AlphaPage() {
               </table>
             ) : (
               /* LONG-TERM ACCUMULATION TABLE VIEW */
-              <table className="w-full text-xs text-left border-collapse text-gray-700">
-                <thead className="bg-gray-50 text-gray-700 uppercase text-[11px] font-bold tracking-tight border-b border-gray-200 sticky top-0">
+              <table className="w-full text-sm text-left border-collapse text-gray-800">
+                <thead className="bg-gray-100/80 text-gray-800 uppercase text-xs font-black tracking-tight border-b border-gray-200 sticky top-0">
                   <tr>
-                    <th className="px-2 py-2.5 text-center w-8">#</th>
-                    <th className="px-2 py-2.5">Mã</th>
-                    <th className="px-2 py-2.5 text-right">Giá</th>
-                    <th className="px-2 py-2.5 text-right">%</th>
+                    <th className="px-1.5 py-2 text-center w-7">#</th>
+                    <th className="px-1.5 py-2">Mã</th>
+                    <th className="px-1.5 py-2 text-right">Giá</th>
+                    <th className="px-1.5 py-2 text-right">%</th>
                     <th 
-                      className="px-2 py-2.5 text-right cursor-pointer hover:text-gray-900 transition select-none"
+                      className="px-1.5 py-2 text-right cursor-pointer hover:text-gray-900 transition select-none"
                       onClick={() => handleSort("volume")}
                     >
                       <div className="flex items-center justify-end gap-1">KL <SortIcon field="volume" /></div>
                     </th>
                     <th 
-                      className="px-2 py-2.5 text-center cursor-pointer hover:text-gray-900 transition select-none"
+                      className="px-1.5 py-2 text-center cursor-pointer hover:text-gray-900 transition select-none"
                       onClick={() => handleSort("lt_score")}
                     >
                       <div className="flex items-center justify-center gap-1">Điểm LT Accum <SortIcon field="lt_score" /></div>
                     </th>
-                    <th className="px-2 py-2.5 text-center">Khuyến nghị LT</th>
-                    <th className="px-2 py-2.5 text-right text-green-700">Mục tiêu LT (Net)</th>
-                    <th className="px-2 py-2.5 text-right text-red-700">Cắt lỗ LT (Net)</th>
+                    <th className="px-1.5 py-2 text-center">Khuyến nghị LT</th>
+                    <th className="px-1.5 py-2 text-right text-green-700">Mục tiêu LT (Net)</th>
+                    <th className="px-1.5 py-2 text-right text-red-700">Cắt lỗ LT (Net)</th>
                     <th 
-                      className="px-2 py-2.5 text-center cursor-pointer hover:text-gray-900 transition select-none"
+                      className="px-1.5 py-2 text-center cursor-pointer hover:text-gray-900 transition select-none"
                       onClick={() => handleSort("lt_rr_ratio")}
                     >
                       <div className="flex items-center justify-center gap-1">R:R LT <SortIcon field="lt_rr_ratio" /></div>
                     </th>
-                    <th className="px-2 py-2.5 text-center">Rủi ro (LT)</th>
-                    <th className="px-2 py-2.5 text-center text-blue-900">Backtest (T+60)</th>
+                    <th className="px-1.5 py-2 text-center">Rủi ro (LT)</th>
+                    <th className="px-1.5 py-2 text-center text-blue-900">Backtest (T+60)</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
                   {sortedStocks.map((s, index) => (
-                    <tr key={s.symbol} className="hover:bg-blue-50/50 transition duration-100">
-                      <td className="px-2 py-2.5 text-center font-mono text-xs text-gray-400">
+                    <tr key={s.symbol} className="hover:bg-blue-50/60 transition duration-100">
+                      <td className="px-1.5 py-1.5 text-center font-mono text-xs text-gray-400 font-semibold">
                         {index + 1}
                       </td>
-                      <td className="px-2 py-2.5">
-                        <Link href={`/?symbol=${s.symbol}`} className="font-black text-sm text-blue-900 hover:underline tracking-wider">
+                      <td className="px-1.5 py-1.5">
+                        <Link href={`/?symbol=${s.symbol}`} className="font-black text-base text-blue-950 hover:underline tracking-wider">
                           {s.symbol}
                         </Link>
                       </td>
-                      <td className="px-2 py-2.5 text-right font-extrabold font-mono text-gray-900 text-sm">
+                      <td className="px-1.5 py-1.5 text-right font-black font-mono text-gray-900 text-base">
                         {formatVnPrice(s.price)}
                       </td>
-                      <td className="px-2 py-2.5 text-right font-mono text-xs">
+                      <td className="px-1.5 py-1.5 text-right font-mono text-sm">
                         <span className={`font-black ${s.pct_change >= 0 ? "text-green-600" : "text-red-600"}`}>
                           {s.pct_change >= 0 ? "+" : ""}{s.pct_change.toFixed(2)}%
                         </span>
                       </td>
-                      <td className="px-2 py-2.5 text-right font-mono font-bold text-gray-600 text-xs">
+                      <td className="px-1.5 py-1.5 text-right font-mono font-bold text-gray-600 text-xs">
                         {(s.volume / 1000000).toFixed(1)}M
                       </td>
-                      <td className="px-2 py-2.5 text-center">
-                        <div className={`inline-block px-2 py-0.5 rounded font-mono font-black text-xs ${
+                      <td className="px-1.5 py-1.5 text-center">
+                        <div className={`inline-block px-2.5 py-1 rounded font-mono font-black text-sm ${
                           s.lt_score >= 25 ? "bg-green-100 text-green-800" :
                           s.lt_score <= -25 ? "bg-red-100 text-red-800" :
                           "bg-gray-100 text-gray-600"
@@ -747,26 +747,26 @@ export default function AlphaPage() {
                           {s.lt_score > 0 ? "+" : ""}{s.lt_score}
                         </div>
                       </td>
-                      <td className="px-2 py-2.5 text-center">
-                        <span className={`px-2 py-1 rounded text-[10px] font-black uppercase inline-block shadow-sm tracking-wide ${getLTActionBadge(s.lt_action)}`}>
+                      <td className="px-1.5 py-1.5 text-center">
+                        <span className={`px-2.5 py-1 rounded text-xs font-black uppercase inline-block shadow-sm tracking-wide ${getLTActionBadge(s.lt_action)}`}>
                           {s.lt_action}
                         </span>
                       </td>
-                      <td className="px-2 py-2.5 text-right font-mono text-xs">
-                        <div className="text-green-700 font-extrabold">{formatVnPrice(s.lt_target_price)}</div>
-                        <div className="text-[10px] text-green-600 font-bold">{s.lt_target_pct >= 0 ? "+" : ""}{s.lt_target_pct}%</div>
+                      <td className="px-1.5 py-1.5 text-right font-mono">
+                        <div className="text-green-700 font-black text-sm">{formatVnPrice(s.lt_target_price)}</div>
+                        <div className="text-xs text-green-600 font-extrabold">{s.lt_target_pct >= 0 ? "+" : ""}{s.lt_target_pct}%</div>
                       </td>
-                      <td className="px-2 py-2.5 text-right font-mono text-xs">
-                        <div className="text-red-600 font-extrabold">{formatVnPrice(s.lt_stop_loss)}</div>
-                        <div className="text-[10px] text-red-500 font-bold">{s.lt_stop_pct}%</div>
+                      <td className="px-1.5 py-1.5 text-right font-mono">
+                        <div className="text-red-600 font-black text-sm">{formatVnPrice(s.lt_stop_loss)}</div>
+                        <div className="text-xs text-red-500 font-extrabold">{s.lt_stop_pct}%</div>
                       </td>
-                      <td className="px-2 py-2.5 text-center">
-                        <span className={`font-mono font-bold text-xs ${getRRColor(s.lt_rr_ratio)}`}>
+                      <td className="px-1.5 py-1.5 text-center">
+                        <span className={`font-mono font-black text-sm ${getRRColor(s.lt_rr_ratio)}`}>
                           {s.lt_rr_ratio.toFixed(1)}:1
                         </span>
                       </td>
-                      <td className="px-2 py-2.5 text-center">
-                        <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                      <td className="px-1.5 py-1.5 text-center">
+                        <span className={`px-2 py-0.5 rounded text-xs font-extrabold ${
                           s.risk_score > 60 ? "bg-red-100 text-red-700" :
                           s.risk_score > 40 ? "bg-amber-100 text-amber-700" :
                           "bg-green-100 text-green-700"
@@ -774,22 +774,22 @@ export default function AlphaPage() {
                           {s.risk_label} ({s.risk_score})
                         </span>
                       </td>
-                      <td className="px-2 py-2.5 text-center">
+                      <td className="px-1.5 py-1.5 text-center">
                         <div className="flex flex-col items-center gap-0.5">
-                          <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase inline-block shadow-sm ${
+                          <span className={`px-2.5 py-0.5 rounded text-xs font-black uppercase inline-block shadow-sm ${
                             (s.lt_real_money_confidence ?? 0) >= 70 ? "bg-emerald-600 text-white ring-1 ring-emerald-400/50" :
-                            (s.lt_real_money_confidence ?? 0) >= 50 ? "bg-amber-500 text-black font-extrabold" :
+                            (s.lt_real_money_confidence ?? 0) >= 50 ? "bg-amber-500 text-black font-black" :
                             "bg-red-500 text-white"
                           }`}>
                             {s.lt_confidence_label || "RỦI RO"} ({s.lt_real_money_confidence ?? 0}đ)
                           </span>
-                          <div className="font-mono text-xs text-gray-700 font-bold">
+                          <div className="font-mono text-xs text-gray-800 font-bold">
                             Win: <span className="text-emerald-700 font-black">{s.lt_bt_win_rate ?? 0}%</span> ({s.lt_bt_winning_count ?? 0}/{s.lt_bt_trade_count ?? 0})
                           </div>
-                          <div className="font-mono text-[10px] text-gray-600 font-semibold">
-                            Lời TB: <span className={(s.lt_bt_avg_return ?? 0) >= 0 ? "text-green-600 font-extrabold" : "text-red-600 font-extrabold"}>
+                          <div className="font-mono text-xs text-gray-600 font-semibold">
+                            Lời TB: <span className={(s.lt_bt_avg_return ?? 0) >= 0 ? "text-green-600 font-black" : "text-red-600 font-black"}>
                               {(s.lt_bt_avg_return ?? 0) >= 0 ? "+" : ""}{s.lt_bt_avg_return ?? 0}%
-                            </span> | MaxDD: <span className="font-extrabold text-red-600">{s.lt_bt_max_drawdown ?? 0}%</span>
+                            </span> | MaxDD: <span className="font-black text-red-600">{s.lt_bt_max_drawdown ?? 0}%</span>
                           </div>
                         </div>
                       </td>
