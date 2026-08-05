@@ -2,8 +2,105 @@
 
 import { useEffect, useState, useCallback } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { ArrowUp, ArrowDown, Award, BarChart3, Search, ChevronUp, ChevronDown, Calendar, LineChart } from "lucide-react"
+import { ArrowUp, ArrowDown, Award, BarChart3, Search, ChevronUp, ChevronDown, Calendar, LineChart, PieChart as PieIcon, Layers } from "lucide-react"
 import Link from "next/link"
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts"
+
+const SECTOR_MAP: Record<string, string> = {
+  // Ngân hàng (Banks)
+  VCB: "Ngân hàng", TCB: "Ngân hàng", BID: "Ngân hàng", CTG: "Ngân hàng", VPB: "Ngân hàng",
+  MBB: "Ngân hàng", ACB: "Ngân hàng", STB: "Ngân hàng", HDB: "Ngân hàng", TPB: "Ngân hàng",
+  LPB: "Ngân hàng", SHB: "Ngân hàng", MSB: "Ngân hàng", OCB: "Ngân hàng", EIB: "Ngân hàng",
+  VIB: "Ngân hàng", SSB: "Ngân hàng", BVB: "Ngân hàng", KLB: "Ngân hàng", ABB: "Ngân hàng",
+  
+  // Bất động sản (Real Estate)
+  VHM: "Bất động sản", VIC: "Bất động sản", VRE: "Bất động sản", KDH: "Bất động sản",
+  NLG: "Bất động sản", DXG: "Bất động sản", PDR: "Bất động sản", DIG: "Bất động sản",
+  CEO: "Bất động sản", DXS: "Bất động sản", NVL: "Bất động sản", KBC: "Bất động sản",
+  ITA: "Bất động sản", SZC: "Bất động sản", HDG: "Bất động sản", TCH: "Bất động sản",
+  CRE: "Bất động sản", KHG: "Bất động sản", HQC: "Bất động sản", IJC: "Bất động sản",
+  LDG: "Bất động sản", DXH: "Bất động sản", QCG: "Bất động sản",
+  
+  // Chứng khoán (Securities)
+  SSI: "Chứng khoán", VND: "Chứng khoán", HCM: "Chứng khoán", VCI: "Chứng khoán",
+  SHS: "Chứng khoán", FTS: "Chứng khoán", CTS: "Chứng khoán", BSI: "Chứng khoán",
+  MBS: "Chứng khoán", ORS: "Chứng khoán", VIX: "Chứng khoán", AGR: "Chứng khoán",
+  TVS: "Chứng khoán", BVS: "Chứng khoán", SBS: "Chứng khoán", PSI: "Chứng khoán",
+  VDS: "Chứng khoán", WSS: "Chứng khoán", APG: "Chứng khoán",
+  
+  // Thép & Vật liệu (Steel & Materials)
+  HPG: "Thép & Vật liệu", HSG: "Thép & Vật liệu", NKG: "Thép & Vật liệu",
+  POM: "Thép & Vật liệu", TLH: "Thép & Vật liệu", SMC: "Thép & Vật liệu",
+  VGS: "Thép & Vật liệu", HT1: "Thép & Vật liệu", BCC: "Thép & Vật liệu",
+  VLB: "Thép & Vật liệu", DHA: "Thép & Vật liệu", KSB: "Thép & Vật liệu",
+  
+  // Bán lẻ & Tiêu dùng (Retail & Consumer)
+  MWG: "Bán lẻ & Tiêu dùng", MSN: "Bán lẻ & Tiêu dùng", VNM: "Bán lẻ & Tiêu dùng",
+  PNJ: "Bán lẻ & Tiêu dùng", FRT: "Bán lẻ & Tiêu dùng", SAB: "Bán lẻ & Tiêu dùng",
+  DGW: "Bán lẻ & Tiêu dùng", PET: "Bán lẻ & Tiêu dùng", MCH: "Bán lẻ & Tiêu dùng",
+  VCF: "Bán lẻ & Tiêu dùng", KDC: "Bán lẻ & Tiêu dùng", VOC: "Bán lẻ & Tiêu dùng",
+  TLG: "Bán lẻ & Tiêu dùng", HAX: "Bán lẻ & Tiêu dùng",
+  
+  // Công nghệ & Viễn thông (Tech & Telecom)
+  FPT: "Công nghệ & Viễn thông", CTR: "Công nghệ & Viễn thông",
+  FOX: "Công nghệ & Viễn thông", ELC: "Công nghệ & Viễn thông",
+  CMG: "Công nghệ & Viễn thông", VGI: "Công nghệ & Viễn thông",
+  TTN: "Công nghệ & Viễn thông", ITD: "Công nghệ & Viễn thông",
+  
+  // Dầu khí & Năng lượng (Oil & Energy)
+  GAS: "Dầu khí & Năng lượng", PLX: "Dầu khí & Năng lượng",
+  PVD: "Dầu khí & Năng lượng", PVS: "Dầu khí & Năng lượng",
+  POW: "Dầu khí & Năng lượng", GEG: "Dầu khí & Năng lượng",
+  REE: "Dầu khí & Năng lượng", PC1: "Dầu khí & Năng lượng",
+  NT2: "Dầu khí & Năng lượng", HDG: "Dầu khí & Năng lượng",
+  TV2: "Dầu khí & Năng lượng", TTA: "Dầu khí & Năng lượng",
+  PVB: "Dầu khí & Năng lượng", PVC: "Dầu khí & Năng lượng",
+  
+  // Hóa chất & Phân bón (Chemicals & Fertilizers)
+  DPM: "Hóa chất & Phân bón", DCM: "Hóa chất & Phân bón",
+  GVR: "Hóa chất & Phân bón", DGC: "Hóa chất & Phân bón",
+  CSV: "Hóa chất & Phân bón", PHR: "Hóa chất & Phân bón",
+  DPR: "Hóa chất & Phân bón", LAS: "Hóa chất & Phân bón",
+  BFC: "Hóa chất & Phân bón", SFG: "Hóa chất & Phân bón",
+  
+  // Thủy sản & Nông nghiệp (Agriculture & Fishery)
+  VHC: "Thủy sản & Nông nghiệp", ANV: "Thủy sản & Nông nghiệp",
+  FMC: "Thủy sản & Nông nghiệp", PAN: "Thủy sản & Nông nghiệp",
+  BAF: "Thủy sản & Nông nghiệp", DBC: "Thủy sản & Nông nghiệp",
+  HAG: "Thủy sản & Nông nghiệp", HNG: "Thủy sản & Nông nghiệp",
+  IDI: "Thủy sản & Nông nghiệp", CMX: "Thủy sản & Nông nghiệp",
+  MPC: "Thủy sản & Nông nghiệp",
+  
+  // Đầu tư công & Xây dựng (Construction & Infrastructure)
+  VCG: "Đầu tư công & Xây dựng", LCG: "Đầu tư công & Xây dựng",
+  HHV: "Đầu tư công & Xây dựng", C4G: "Đầu tư công & Xây dựng",
+  FCN: "Đầu tư công & Xây dựng", DPG: "Đầu tư công & Xây dựng",
+  HBC: "Đầu tư công & Xây dựng", CTD: "Đầu tư công & Xây dựng",
+  HTN: "Đầu tư công & Xây dựng", C32: "Đầu tư công & Xây dựng",
+  
+  // Vận tải & Cảng biển (Logistics & Ports)
+  GMD: "Vận tải & Cảng biển", HAH: "Vận tải & Cảng biển",
+  PVT: "Vận tải & Cảng biển", VSC: "Vận tải & Cảng biển",
+  VJC: "Vận tải & Cảng biển", HVN: "Vận tải & Cảng biển",
+  SGP: "Vận tải & Cảng biển", CLL: "Vận tải & Cảng biển",
+  DXP: "Vận tải & Cảng biển"
+};
+
+const SECTOR_COLORS: Record<string, string> = {
+  "Ngân hàng": "#1e3a8a",
+  "Bất động sản": "#b45309",
+  "Chứng khoán": "#2563eb",
+  "Thép & Vật liệu": "#475569",
+  "Bán lẻ & Tiêu dùng": "#db2777",
+  "Công nghệ & Viễn thông": "#0d9488",
+  "Dầu khí & Năng lượng": "#ea580c",
+  "Hóa chất & Phân bón": "#16a34a",
+  "Thủy sản & Nông nghiệp": "#854d0e",
+  "Đầu tư công & Xây dựng": "#7c3aed",
+  "Vận tải & Cảng biển": "#0284c7",
+  "Khác": "#94a3b8"
+};
+
 
 interface AlphaStock {
   symbol: string;
@@ -160,6 +257,48 @@ export default function AlphaPage() {
     return "text-red-500 font-medium"
   }
 
+  const sectorData = (() => {
+    const sectorCounts: Record<string, { total: number; buyCount: number; topStock: string; topScore: number }> = {};
+    
+    stocks.forEach(s => {
+      const sector = SECTOR_MAP[s.symbol] || "Khác";
+      if (!sectorCounts[sector]) {
+        sectorCounts[sector] = { total: 0, buyCount: 0, topStock: "", topScore: -999 };
+      }
+      
+      sectorCounts[sector].total += 1;
+      
+      const isOpportunity = mode === "swing"
+        ? (s.action === "BUY" || s.action === "STRONG BUY")
+        : (s.lt_action === "TÍCH LŨY" || s.lt_action === "TÍCH LŨY MẠNH");
+        
+      if (isOpportunity) {
+        sectorCounts[sector].buyCount += 1;
+      }
+      
+      const score = mode === "swing" ? s.signal_score : s.lt_score;
+      if (score > sectorCounts[sector].topScore) {
+        sectorCounts[sector].topScore = score;
+        sectorCounts[sector].topStock = s.symbol;
+      }
+    });
+    
+    const chartData = Object.entries(sectorCounts)
+      .map(([name, stats]) => ({
+        name,
+        value: stats.buyCount,
+        total: stats.total,
+        topStock: stats.topStock,
+        topScore: stats.topScore
+      }))
+      .filter(item => item.value > 0)
+      .sort((a, b) => b.value - a.value);
+      
+    return chartData;
+  })();
+
+  const totalOpportunities = sectorData.reduce((sum, item) => sum + item.value, 0);
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-gray-50 text-gray-900">
@@ -270,6 +409,110 @@ export default function AlphaPage() {
           </div>
         </div>
 
+        {/* Sector Analytics Panel */}
+        {totalOpportunities > 0 && (
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <Card className="bg-white border-gray-200 shadow-sm lg:col-span-1">
+              <CardHeader className="bg-gray-50 border-b border-gray-200 py-3">
+                <CardTitle className="text-sm font-bold text-gray-800 flex items-center gap-2">
+                  <PieIcon size={16} className="text-blue-600" />
+                  Phân bổ cơ hội theo ngành
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="py-6 flex flex-col items-center justify-center min-h-[260px]">
+                <div className="w-full h-[180px]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={sectorData}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={50}
+                        outerRadius={75}
+                        paddingAngle={3}
+                        dataKey="value"
+                      >
+                        {sectorData.map((entry, index) => (
+                          <Cell 
+                            key={`cell-${index}`} 
+                            fill={SECTOR_COLORS[entry.name] || "#94a3b8"} 
+                          />
+                        ))}
+                      </Pie>
+                      <Tooltip
+                        formatter={(value: any, name: any) => {
+                          const pct = ((Number(value) / totalOpportunities) * 100).toFixed(1);
+                          return [`${value} mã (${pct}%)`, name];
+                        }}
+                        contentStyle={{
+                          backgroundColor: "#fff",
+                          border: "1px solid #e2e8f0",
+                          borderRadius: "6px",
+                          fontSize: "12px",
+                          color: "#1e293b"
+                        }}
+                      />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+                <div className="text-center mt-2">
+                  <p className="text-xs text-gray-500">Tổng cộng: <span className="font-bold text-blue-900">{totalOpportunities}</span> cơ hội tích cực</p>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="bg-white border-gray-200 shadow-sm lg:col-span-2">
+              <CardHeader className="bg-gray-50 border-b border-gray-200 py-3">
+                <CardTitle className="text-sm font-bold text-gray-800 flex items-center gap-2">
+                  <Layers size={16} className="text-blue-600" />
+                  Báo cáo cơ hội chi tiết theo ngành
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-0 overflow-y-auto max-h-[260px]">
+                <table className="w-full text-xs text-left border-collapse text-gray-700">
+                  <thead className="bg-gray-50 text-gray-500 uppercase text-[9px] font-bold tracking-wider border-b border-gray-200 sticky top-0">
+                    <tr>
+                      <th className="px-4 py-2">Tên Ngành</th>
+                      <th className="px-4 py-2 text-center">Số Cơ Hồi</th>
+                      <th className="px-4 py-2 text-center">Tỷ Lệ</th>
+                      <th className="px-4 py-2">Mã Dẫn Đầu (Alpha)</th>
+                      <th className="px-4 py-2 text-center">Điểm</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {sectorData.map((item) => {
+                      const color = SECTOR_COLORS[item.name] || "#94a3b8";
+                      const pct = ((item.value / totalOpportunities) * 100).toFixed(1);
+                      return (
+                        <tr key={item.name} className="hover:bg-gray-50/50">
+                          <td className="px-4 py-2.5 font-bold flex items-center gap-2">
+                            <span className="w-2.5 h-2.5 rounded-full inline-block" style={{ backgroundColor: color }}></span>
+                            {item.name}
+                          </td>
+                          <td className="px-4 py-2.5 text-center font-mono font-bold text-gray-900">
+                            {item.value} <span className="text-[10px] text-gray-400 font-normal">/ {item.total}</span>
+                          </td>
+                          <td className="px-4 py-2.5 text-center font-mono font-medium text-gray-500">
+                            {pct}%
+                          </td>
+                          <td className="px-4 py-2.5 font-extrabold text-blue-900">
+                            <Link href={`/?symbol=${item.topStock}`} className="hover:underline">
+                              {item.topStock}
+                            </Link>
+                          </td>
+                          <td className="px-4 py-2.5 text-center font-mono font-bold text-green-700">
+                            {item.topScore > 0 ? "+" : ""}{item.topScore}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
         {/* Table Card */}
         <Card className="bg-white border-gray-200 overflow-hidden shadow-sm">
           <CardHeader className="bg-gray-50 border-b border-gray-200 py-3">
@@ -364,12 +607,12 @@ export default function AlphaPage() {
                         </span>
                       </td>
                       <td className="px-3 py-3 text-right font-mono text-xs">
-                        <div className="text-green-700 font-bold">{(s.target_price * 1000).toLocaleString()}</div>
+                        <div className="text-green-700 font-bold">{(s.target_price).toLocaleString()}</div>
                         <div className="text-[9px] text-green-500">+{s.target_pct}%</div>
                       </td>
                       <td className="px-3 py-3 text-right font-mono text-xs">
-                        <div className="text-red-600 font-bold">{(s.stop_loss * 1000).toLocaleString()}</div>
-                        <div className="text-[9px] text-red-450">{s.stop_loss_pct}%</div>
+                        <div className="text-red-600 font-bold">{(s.stop_loss).toLocaleString()}</div>
+                        <div className="text-[9px] text-red-455">{s.stop_loss_pct}%</div>
                       </td>
                       <td className="px-3 py-3 text-center">
                         <span className={`font-mono text-xs ${getRRColor(s.risk_reward_ratio)}`}>
@@ -460,11 +703,11 @@ export default function AlphaPage() {
                         </span>
                       </td>
                       <td className="px-3 py-3 text-right font-mono text-xs">
-                        <div className="text-green-700 font-bold">{(s.lt_target_price * 1000).toLocaleString()}</div>
+                        <div className="text-green-700 font-bold">{(s.lt_target_price).toLocaleString()}</div>
                         <div className="text-[9px] text-green-500">{s.lt_target_pct >= 0 ? "+" : ""}{s.lt_target_pct}%</div>
                       </td>
                       <td className="px-3 py-3 text-right font-mono text-xs">
-                        <div className="text-red-600 font-bold">{(s.lt_stop_loss * 1000).toLocaleString()}</div>
+                        <div className="text-red-600 font-bold">{(s.lt_stop_loss).toLocaleString()}</div>
                         <div className="text-[9px] text-red-400">{s.lt_stop_pct}%</div>
                       </td>
                       <td className="px-3 py-3 text-center">

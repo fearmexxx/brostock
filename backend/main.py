@@ -417,8 +417,8 @@ async def update_market_data(force=False):
                     lt = calculate_longterm_score(df)
                     return {
                         "symbol": sym,
-                        "price": float(curr)*1000,
-                        "change": float(curr-prev)*1000,
+                        "price": float(curr),
+                        "change": float(curr-prev),
                         "pct_change": float((curr/prev-1)*100),
                         "volume": int(df['volume'].iloc[-1]),
                         "signal_score": m.get('signal_score', 0),
