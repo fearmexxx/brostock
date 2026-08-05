@@ -52,7 +52,7 @@ const SECTOR_MAP: Record<string, string> = {
   PVD: "Dầu khí & Năng lượng", PVS: "Dầu khí & Năng lượng",
   POW: "Dầu khí & Năng lượng", GEG: "Dầu khí & Năng lượng",
   REE: "Dầu khí & Năng lượng", PC1: "Dầu khí & Năng lượng",
-  NT2: "Dầu khí & Năng lượng", HDG: "Dầu khí & Năng lượng",
+  NT2: "Dầu khí & Năng lượng",
   TV2: "Dầu khí & Năng lượng", TTA: "Dầu khí & Năng lượng",
   PVB: "Dầu khí & Năng lượng", PVC: "Dầu khí & Năng lượng",
   
@@ -131,6 +131,26 @@ interface AlphaStock {
   lt_stop_loss: number;
   lt_stop_pct: number;
   lt_rr_ratio: number;
+
+  // Swing Backtest fields (T+15)
+  bt_win_rate?: number;
+  bt_avg_return?: number;
+  bt_profit_factor?: number;
+  bt_max_drawdown?: number;
+  bt_trade_count?: number;
+  bt_winning_count?: number;
+  real_money_confidence?: number;
+  confidence_label?: string;
+
+  // Long-term Backtest fields (T+60)
+  lt_bt_win_rate?: number;
+  lt_bt_avg_return?: number;
+  lt_bt_profit_factor?: number;
+  lt_bt_max_drawdown?: number;
+  lt_bt_trade_count?: number;
+  lt_bt_winning_count?: number;
+  lt_real_money_confidence?: number;
+  lt_confidence_label?: string;
 }
 
 type SortField = "volume" | "conviction" | "outlook" | "rr_ratio" | "lt_score" | "lt_rr_ratio"
@@ -568,6 +588,7 @@ export default function AlphaPage() {
                     >
                       <div className="flex items-center justify-center gap-1">5D <SortIcon field="outlook" /></div>
                     </th>
+                    <th className="px-3 py-3 text-center text-blue-900">Backtest (T+15)</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
@@ -612,7 +633,7 @@ export default function AlphaPage() {
                       </td>
                       <td className="px-3 py-3 text-right font-mono text-xs">
                         <div className="text-red-600 font-bold">{(s.stop_loss).toLocaleString()}</div>
-                        <div className="text-[9px] text-red-455">{s.stop_loss_pct}%</div>
+                        <div className="text-[9px] text-red-400">{s.stop_loss_pct}%</div>
                       </td>
                       <td className="px-3 py-3 text-center">
                         <span className={`font-mono text-xs ${getRRColor(s.risk_reward_ratio)}`}>
@@ -627,6 +648,25 @@ export default function AlphaPage() {
                         </div>
                         <div className="text-[8px] uppercase tracking-wider text-gray-400">
                           {s.prediction_label === "UPWARD" ? "TĂNG" : s.prediction_label === "DOWNWARD" ? "GIẢM" : "NGANG"}
+                        </div>
+                      </td>
+                      <td className="px-3 py-3 text-center">
+                        <div className="flex flex-col items-center gap-0.5">
+                          <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase inline-block shadow-sm ${
+                            (s.real_money_confidence ?? 0) >= 70 ? "bg-emerald-600 text-white ring-1 ring-emerald-400/50" :
+                            (s.real_money_confidence ?? 0) >= 50 ? "bg-amber-500 text-black font-extrabold" :
+                            "bg-red-500 text-white"
+                          }`}>
+                            {s.confidence_label || "RỦI RO"} ({s.real_money_confidence ?? 0}đ)
+                          </span>
+                          <div className="font-mono text-[10px] text-gray-600 font-bold">
+                            Win: <span className="text-emerald-700 font-extrabold">{s.bt_win_rate ?? 0}%</span> ({s.bt_winning_count ?? 0}/{s.bt_trade_count ?? 0})
+                          </div>
+                          <div className="font-mono text-[9px] text-gray-500">
+                            Lời TB: <span className={(s.bt_avg_return ?? 0) >= 0 ? "text-green-600 font-bold" : "text-red-600 font-bold"}>
+                              {(s.bt_avg_return ?? 0) >= 0 ? "+" : ""}{s.bt_avg_return ?? 0}%
+                            </span> | PF: <span className="font-bold text-gray-700">{s.bt_profit_factor ?? 0}</span>
+                          </div>
                         </div>
                       </td>
                     </tr>
@@ -664,6 +704,7 @@ export default function AlphaPage() {
                       <div className="flex items-center justify-center gap-1">R:R LT <SortIcon field="lt_rr_ratio" /></div>
                     </th>
                     <th className="px-3 py-3 text-center">Rủi ro (LT)</th>
+                    <th className="px-3 py-3 text-center text-blue-900">Backtest (T+60)</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
@@ -723,6 +764,25 @@ export default function AlphaPage() {
                         }`}>
                           {s.risk_label} ({s.risk_score})
                         </span>
+                      </td>
+                      <td className="px-3 py-3 text-center">
+                        <div className="flex flex-col items-center gap-0.5">
+                          <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase inline-block shadow-sm ${
+                            (s.lt_real_money_confidence ?? 0) >= 70 ? "bg-emerald-600 text-white ring-1 ring-emerald-400/50" :
+                            (s.lt_real_money_confidence ?? 0) >= 50 ? "bg-amber-500 text-black font-extrabold" :
+                            "bg-red-500 text-white"
+                          }`}>
+                            {s.lt_confidence_label || "RỦI RO"} ({s.lt_real_money_confidence ?? 0}đ)
+                          </span>
+                          <div className="font-mono text-[10px] text-gray-600 font-bold">
+                            Win: <span className="text-emerald-700 font-extrabold">{s.lt_bt_win_rate ?? 0}%</span> ({s.lt_bt_winning_count ?? 0}/{s.lt_bt_trade_count ?? 0})
+                          </div>
+                          <div className="font-mono text-[9px] text-gray-500">
+                            Lời TB: <span className={(s.lt_bt_avg_return ?? 0) >= 0 ? "text-green-600 font-bold" : "text-red-600 font-bold"}>
+                              {(s.lt_bt_avg_return ?? 0) >= 0 ? "+" : ""}{s.lt_bt_avg_return ?? 0}%
+                            </span> | MaxDD: <span className="font-bold text-red-600">{s.lt_bt_max_drawdown ?? 0}%</span>
+                          </div>
+                        </div>
                       </td>
                     </tr>
                   ))}

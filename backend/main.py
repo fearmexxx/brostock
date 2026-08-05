@@ -27,7 +27,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from stock_analyzer import (
     get_intraday_data, preprocess_data, aggregate_data, calculate_summary,
     get_stock_history_data, calculate_trend_metrics, calculate_longterm_score,
-    is_trading_time, generate_intraday_chart_image
+    calculate_stock_backtest_stats, is_trading_time, generate_intraday_chart_image
 )
 from backtester import run_backtest
 from derivatives_analyzer import get_vn30_data, calculate_vn30f_signal, get_signal_history
@@ -410,11 +410,13 @@ async def update_market_data(force=False):
             try:
                 # Add a sleep to prevent hitting API burst rate limits
                 time.sleep(0.5)
-                df = get_stock_history_data(sym, days=120)
+                df = get_stock_history_data(sym, days=250)
                 if df is not None and len(df) >= 2:
                     prev, curr = df['close'].iloc[-2], df['close'].iloc[-1]
                     m = calculate_trend_metrics(df)
                     lt = calculate_longterm_score(df)
+                    swing_bt = calculate_stock_backtest_stats(df, holding_days=15)
+                    lt_bt = calculate_stock_backtest_stats(df, holding_days=60)
                     return {
                         "symbol": sym,
                         "price": float(curr),
@@ -444,7 +446,25 @@ async def update_market_data(force=False):
                         "lt_target_pct": lt.get('lt_target_pct', 0),
                         "lt_stop_loss": lt.get('lt_stop_loss', 0),
                         "lt_stop_pct": lt.get('lt_stop_pct', 0),
-                        "lt_rr_ratio": lt.get('lt_rr_ratio', 0)
+                        "lt_rr_ratio": lt.get('lt_rr_ratio', 0),
+                        # Swing Backtest (T+15)
+                        "bt_win_rate": swing_bt.get('win_rate', 0.0),
+                        "bt_avg_return": swing_bt.get('avg_return_pct', 0.0),
+                        "bt_profit_factor": swing_bt.get('profit_factor', 0.0),
+                        "bt_max_drawdown": swing_bt.get('max_drawdown_pct', 0.0),
+                        "bt_trade_count": swing_bt.get('trade_count', 0),
+                        "bt_winning_count": swing_bt.get('winning_count', 0),
+                        "real_money_confidence": swing_bt.get('real_money_confidence', 0),
+                        "confidence_label": swing_bt.get('confidence_label', 'N/A'),
+                        # Long-Term Backtest (T+60)
+                        "lt_bt_win_rate": lt_bt.get('win_rate', 0.0),
+                        "lt_bt_avg_return": lt_bt.get('avg_return_pct', 0.0),
+                        "lt_bt_profit_factor": lt_bt.get('profit_factor', 0.0),
+                        "lt_bt_max_drawdown": lt_bt.get('max_drawdown_pct', 0.0),
+                        "lt_bt_trade_count": lt_bt.get('trade_count', 0),
+                        "lt_bt_winning_count": lt_bt.get('winning_count', 0),
+                        "lt_real_money_confidence": lt_bt.get('real_money_confidence', 0),
+                        "lt_confidence_label": lt_bt.get('confidence_label', 'N/A')
                     }
             except (Exception, SystemExit) as e:
                 logger.warning(f"[FetchStock] {sym}: {e}")

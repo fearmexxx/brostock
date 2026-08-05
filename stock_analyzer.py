@@ -191,6 +191,21 @@ def get_stock_history_data(symbol, days=365):
                     logger.warning(f"[vnstock Fallback] Failed for {symbol}: {e}")
 
             if api_df is not None and not api_df.empty:
+                # Automatic price scale normalization (thousands of VND -> 1 VND)
+                for col in ['open', 'high', 'low', 'close']:
+                    if col in api_df.columns:
+                        api_df[col] = pd.to_numeric(api_df[col], errors='coerce')
+                
+                if 'close' in api_df.columns and not api_df.empty:
+                    max_close = api_df['close'].max()
+                    # Skip index symbols (e.g. VNINDEX is ~1200, but is standard, so check symbol not like index)
+                    is_index = symbol.upper() in ['VNINDEX', 'HNXINDEX', 'VN30', 'UPINDEX'] or 'INDEX' in symbol.upper()
+                    if not is_index and max_close is not None and max_close < 250.0:
+                        logger.info(f"[Scale Normalizer] Scaling prices by 1000 for {symbol} (max close: {max_close})")
+                        for col in ['open', 'high', 'low', 'close']:
+                            if col in api_df.columns:
+                                api_df[col] = api_df[col] * 1000.0
+
                 save_daily_bars(symbol, api_df)
                 # Re-fetch from DB to get consistent formatting/merged data
                 df = get_history(symbol, start_date=start_date, end_date=end_date)
@@ -481,6 +496,139 @@ def calculate_trend_metrics(df):
         'stop_loss_pct': stop_loss_pct,
         'risk_reward_ratio': risk_reward_ratio
     }
+
+def calculate_stock_backtest_stats(df, holding_days=15):
+    """
+    Calculates historical signal performance statistics for a specific stock over past daily bars.
+    holding_days: 15 for Swing Trading, 60 for Long-Term Accumulation.
+    """
+    if df is None or len(df) < 50:
+        return {
+            "win_rate": 0.0,
+            "avg_return_pct": 0.0,
+            "profit_factor": 0.0,
+            "max_drawdown_pct": 0.0,
+            "trade_count": 0,
+            "winning_count": 0,
+            "real_money_confidence": 0,
+            "confidence_label": "THIẾU DỮ LIỆU"
+        }
+
+    try:
+        from backtester import calculate_signal_score
+        df_calc = calculate_signal_score(df)
+        df_calc = df_calc.dropna(subset=['score', 'close'])
+        
+        if len(df_calc) < 20:
+            return {
+                "win_rate": 0.0,
+                "avg_return_pct": 0.0,
+                "profit_factor": 0.0,
+                "max_drawdown_pct": 0.0,
+                "trade_count": 0,
+                "winning_count": 0,
+                "real_money_confidence": 0,
+                "confidence_label": "THIẾU DỮ LIỆU"
+            }
+
+        fee_pct = 0.4  # VN round trip fee 0.4%
+        trades = []
+        i = 0
+        n = len(df_calc)
+
+        while i < n - 1:
+            score = df_calc['score'].iloc[i]
+            # Signal entry trigger: score >= 25 (BUY)
+            if score >= 25:
+                entry_price = df_calc['close'].iloc[i]
+                entry_idx = i
+                exit_idx = min(i + holding_days, n - 1)
+                
+                # Check holding period prices
+                hold_window = df_calc['close'].iloc[entry_idx : exit_idx + 1]
+                exit_price = hold_window.iloc[-1]
+                
+                # Gross and Net Return
+                gross_ret = ((exit_price / entry_price) - 1.0) * 100.0
+                net_ret = round(gross_ret - fee_pct, 2)
+                
+                # Calculate trade max drawdown
+                peak = hold_window.cummax()
+                dd = ((hold_window - peak) / peak).min() * 100.0
+                
+                trades.append({
+                    "net_ret": net_ret,
+                    "drawdown": dd
+                })
+                
+                # Skip forward by holding period to prevent overlapping signal spam
+                i += max(1, holding_days // 2)
+            else:
+                i += 1
+
+        if not trades:
+            return {
+                "win_rate": 0.0,
+                "avg_return_pct": 0.0,
+                "profit_factor": 0.0,
+                "max_drawdown_pct": 0.0,
+                "trade_count": 0,
+                "winning_count": 0,
+                "real_money_confidence": 0,
+                "confidence_label": "CHƯA CÓ KÈO"
+            }
+
+        total_trades = len(trades)
+        winning_trades = [t for t in trades if t['net_ret'] > 0]
+        losing_trades = [t for t in trades if t['net_ret'] <= 0]
+        
+        win_rate = round((len(winning_trades) / total_trades) * 100.0, 1)
+        avg_return_pct = round(sum(t['net_ret'] for t in trades) / total_trades, 2)
+        
+        gross_gains = sum(t['net_ret'] for t in winning_trades)
+        gross_losses = abs(sum(t['net_ret'] for t in losing_trades))
+        
+        profit_factor = round(gross_gains / gross_losses, 2) if gross_losses > 0 else (round(gross_gains, 2) if gross_gains > 0 else 1.0)
+        max_drawdown_pct = round(min(t['drawdown'] for t in trades), 1)
+
+        # Real-Money Confidence Rating (0-100)
+        wr_score = min(win_rate, 100.0) * 0.40
+        pf_score = min(profit_factor / 2.5, 1.0) * 100.0 * 0.30
+        ret_score = min(max(avg_return_pct, 0) / 10.0, 1.0) * 100.0 * 0.20
+        mdd_score = max(0, 100.0 + max_drawdown_pct * 3) * 0.10
+        
+        confidence = int(round(wr_score + pf_score + ret_score + mdd_score))
+        confidence = min(max(confidence, 0), 100)
+
+        if confidence >= 70:
+            confidence_label = "TIN CẬY CAO"
+        elif confidence >= 50:
+            confidence_label = "TRUNG BÌNH"
+        else:
+            confidence_label = "RỦI RO"
+
+        return {
+            "win_rate": float(win_rate),
+            "avg_return_pct": float(avg_return_pct),
+            "profit_factor": float(profit_factor),
+            "max_drawdown_pct": float(max_drawdown_pct),
+            "trade_count": int(total_trades),
+            "winning_count": int(len(winning_trades)),
+            "real_money_confidence": int(confidence),
+            "confidence_label": confidence_label
+        }
+    except Exception as e:
+        logger.warning(f"[BacktestStats] Failed: {e}")
+        return {
+            "win_rate": 0.0,
+            "avg_return_pct": 0.0,
+            "profit_factor": 0.0,
+            "max_drawdown_pct": 0.0,
+            "trade_count": 0,
+            "winning_count": 0,
+            "real_money_confidence": 0,
+            "confidence_label": "LỖI TÍNH"
+        }
 
 def calculate_risk_score(df):
     """
