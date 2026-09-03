@@ -1,6 +1,15 @@
 # Progress Tracking - BroStock Pro
 
-## Current Status: Phase 6 Complete — Algorithmic Documentation & Real-Money Empirical Engine Live
+## Current Status: Phase 7 Complete — VBE Agency Go-Live & Commercial Readiness (vbe.com.vn)
+
+## Completed Tasks - Phase 7 (VBE Agency Commercial Readiness & Go-Live)
+- [x] **CORS & Domain Whitelisting:** Enabled cross-origin requests for `vbe.com.vn`, `*.vbe.com.vn`, and Vercel custom domains in `backend/main.py`.
+- [x] **Production Health Check:** Added `/api/health` monitoring endpoint (database connection, cache status, trading hours, version).
+- [x] **Agency Metadata:** Added `/api/agency/info` endpoint for agency service information and feature summaries.
+- [x] **Responsive Navigation:** Upgraded `Navbar` with VBE Agency badge, active link highlights, and a mobile drawer for phone/tablet users.
+- [x] **Agency Footer:** Added comprehensive footer with VBE Agency branding, links to `vbe.com.vn`, and UBCKNN regulatory compliance disclaimers.
+- [x] **Broker Quick-Copy Signal:** Added one-click "Sao chép khuyến nghị" button in Alpha table for advisors to instantly generate and paste trading briefs into client Zalo/Telegram groups.
+- [x] **2-Week Launch Roadmap:** Created detailed launch playbook in `VBE_GO_LIVE_ROADMAP.md` covering domain routing, server keep-alive, staff training, and live market testing.
 
 ## Completed Tasks - Phase 6 (Real-Money Backtest Engine & Algorithmic Documentation)
 - [x] **Algorithmic Documentation:** Created dedicated `/doc` route and added "Thuật toán (DOC)" link to top header navigation.
@@ -33,8 +42,8 @@
 - [x] **UI/UX:** Dashboard (Command Center) and Alpha tables built with Tailwind/Shadcn.
 - [x] **Cloud:** Deploy Backend/Bot to Render and Frontend to Vercel.
 
-## Next Steps / Real-Money Operation Roadmap
-- [ ] **Execution:** Deploy capital into Top "TIN CẬY CAO" Alpha opportunities with strict ATR Stop Losses.
-- [ ] **Data:** Implement "Foreign & Proprietary" (Khối ngoại & Tự doanh) trading flow tracking.
-- [ ] **Derivatives:** Upgrade to real-time tick-by-tick scalping when direct futures websocket is connected.
-- [ ] **Notification:** Set up automated Telegram alerts for high-conviction (>70đ) signal triggers.
+## Next Steps / 2-Week Launch Countdown
+1. **Week 1:** Configure Custom Subdomain `stock.vbe.com.vn` (or `terminal.vbe.com.vn`) on Vercel DNS.
+2. **Week 1:** Setup UptimeRobot pinging `https://brostock-backend.onrender.com/api/health` every 5 mins to prevent Render cold-start.
+3. **Week 2:** Conduct live-session stress testing with VBE Agency advisors during market hours (9:15 - 14:45 ICT).
+4. **Week 2:** Public announcement & onboard VIP agency clients to Telegram Signal alerts.

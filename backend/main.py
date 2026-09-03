@@ -47,7 +47,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-app = FastAPI(title="BroStock API & Bot", version="2.0.0")
+app = FastAPI(title="BroStock API & Bot — VBE Agency Edition", version="2.6.0")
 
 # Enable CORS
 _raw_origins = os.getenv("ALLOWED_ORIGINS", "")
@@ -56,7 +56,7 @@ ALLOWED_ORIGINS = [o.strip() for o in _raw_origins.split(",") if o.strip()]
 app.add_middleware(
     CORSMiddleware,
     allow_origins=ALLOWED_ORIGINS if ALLOWED_ORIGINS else ["*"],
-    allow_origin_regex=r"https://.*\.vercel\.app|http://localhost:.*",
+    allow_origin_regex=r"https://.*\.vercel\.app|http://localhost:.*|https://.*\.vbe\.com\.vn|https://vbe\.com\.vn|http://.*\.vbe\.com\.vn",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -649,6 +649,49 @@ async def periodic_update():
         await asyncio.sleep(600)
 
 # --- Endpoints ---
+
+@app.get("/api/health")
+async def health_check():
+    db_status = "connected"
+    try:
+        from database import get_session, MarketCache
+        with get_session() as s:
+            s.query(MarketCache).first()
+    except Exception as e:
+        db_status = f"error: {str(e)}"
+
+    return {
+        "status": "healthy",
+        "service": "BroStock Pro - Institutional Terminal",
+        "agency": "VBE Agency (vbe.com.vn)",
+        "version": "2.6.0",
+        "timestamp": datetime.now().isoformat(),
+        "database": db_status,
+        "trading_time": is_trading_time(),
+        "cache_status": {
+            "last_updated": market_cache.get("last_updated"),
+            "alpha_count": len(market_cache.get("alpha", [])),
+            "derivatives_active": bool(market_cache.get("derivatives_signal")),
+            "indices_available": bool(market_cache.get("indices"))
+        }
+    }
+
+@app.get("/api/agency/info")
+async def agency_info():
+    return {
+        "platform": "BroStock Pro",
+        "agency": "VBE Agency",
+        "website": "https://vbe.com.vn",
+        "description": "Nền tảng phân tích định lượng và cảnh báo tín hiệu thị trường chứng khoán Việt Nam dành cho khách hàng & chuyên viên tư vấn VBE Agency.",
+        "support_email": "contact@vbe.com.vn",
+        "features": [
+            "Multi-Factor Conviction Engine v2.6 (-100 đến +100)",
+            "BroStock Alpha Top 100 Cơ hội (Swing T+15 & Long-term 3-6M)",
+            "Real-Money Empirical Backtest Engine (Đã trừ thuế phí 0.4%)",
+            "Định hướng Phái sinh VN30F & Scalping ATR",
+            "Smart Money Shark Flow Tracker (Dòng tiền tay to)"
+        ]
+    }
 
 @app.get("/api/market/overview")
 async def get_market_overview(): return market_cache

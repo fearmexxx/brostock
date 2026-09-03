@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { ArrowUp, ArrowDown, Award, BarChart3, Search, ChevronUp, ChevronDown, Calendar, LineChart, PieChart as PieIcon, Layers } from "lucide-react"
+import { ArrowUp, ArrowDown, Award, BarChart3, Search, ChevronUp, ChevronDown, Calendar, LineChart, PieChart as PieIcon, Layers, Copy, Check, Share2 } from "lucide-react"
 import Link from "next/link"
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts"
 
@@ -172,6 +172,41 @@ export default function AlphaPage() {
   const [filterAction, setFilterAction] = useState<string>("ALL")
   const [sortBy, setSortBy] = useState<SortField>("conviction")
   const [sortOrder, setSortOrder] = useState<"desc" | "asc">("desc")
+  const [copiedSymbol, setCopiedSymbol] = useState<string | null>(null)
+
+  const copyClientBrief = (s: AlphaStock, currentMode: "swing" | "longterm") => {
+    const isSwing = currentMode === "swing"
+    const target = isSwing ? s.target_price : s.lt_target_price
+    const targetPct = isSwing ? s.target_pct : s.lt_target_pct
+    const stopLoss = isSwing ? s.stop_loss : s.lt_stop_loss
+    const stopLossPct = isSwing ? s.stop_loss_pct : s.lt_stop_pct
+    const rr = isSwing ? s.risk_reward_ratio : s.lt_rr_ratio
+    const action = isSwing ? getActionLabel(s.action) : s.lt_action
+    const score = isSwing ? s.signal_score : s.lt_score
+    const confLabel = isSwing ? s.confidence_label : s.lt_confidence_label
+    const winRate = isSwing ? s.bt_win_rate : s.lt_bt_win_rate
+    const avgReturn = isSwing ? s.bt_avg_return : s.lt_bt_avg_return
+
+    const brief = [
+      `📊 [VBE AGENCY - KHUYẾN NGHỊ ĐẦU TƯ]`,
+      `Mã cổ phiếu: ${s.symbol} (${SECTOR_MAP[s.symbol] || "Thị trường chung"})`,
+      `Giá hiện tại: ${formatVnPrice(s.price)} VNĐ (${s.pct_change >= 0 ? "+" : ""}${s.pct_change.toFixed(2)}%)`,
+      `Chiến lược: ${isSwing ? "Swing Trading (T+15)" : "Tích luỹ Nắm giữ (3-6 Tháng)"}`,
+      `Khuyến nghị: ${action} (Conviction: ${score > 0 ? "+" : ""}${score} | ${confLabel || "THEO DÕI"})`,
+      `🎯 Mục tiêu Net: ${formatVnPrice(target)} VNĐ (+${targetPct}%)`,
+      `🛡️ Cắt lỗ Net: ${formatVnPrice(stopLoss)} VNĐ (${stopLossPct}%)`,
+      `Tỷ lệ R:R: ${rr ? rr.toFixed(1) : "2.0"}:1`,
+      winRate !== undefined ? `Hiệu suất kiểm thử: Thắng ${winRate}% | Lời TB: ${(avgReturn ?? 0) >= 0 ? "+" : ""}${(avgReturn ?? 0).toFixed(2)}% (Đã trừ thuế & phí 0.4%)` : null,
+      `--`,
+      `👉 Phân tích chi tiết: https://vbe.com.vn | Terminal BroStock Pro`,
+    ].filter(Boolean).join("\n")
+
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(brief)
+      setCopiedSymbol(s.symbol)
+      setTimeout(() => setCopiedSymbol(null), 2500)
+    }
+  }
 
   const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
@@ -607,9 +642,22 @@ export default function AlphaPage() {
                         {index + 1}
                       </td>
                       <td className="px-1.5 py-1.5">
-                        <Link href={`/?symbol=${s.symbol}`} className="font-black text-base text-blue-950 hover:underline tracking-wider">
-                          {s.symbol}
-                        </Link>
+                        <div className="flex items-center gap-1.5">
+                          <Link href={`/?symbol=${s.symbol}`} className="font-black text-base text-blue-950 hover:underline tracking-wider">
+                            {s.symbol}
+                          </Link>
+                          <button
+                            onClick={() => copyClientBrief(s, mode)}
+                            title="Sao chép khuyến nghị tư vấn khách hàng (Zalo/Telegram)"
+                            className="p-1 text-gray-400 hover:text-blue-700 hover:bg-blue-100 rounded transition"
+                          >
+                            {copiedSymbol === s.symbol ? (
+                              <Check size={13} className="text-emerald-600 font-bold" />
+                            ) : (
+                              <Copy size={12} />
+                            )}
+                          </button>
+                        </div>
                       </td>
                       <td className="px-1.5 py-1.5 text-right font-black font-mono text-gray-900 text-base">
                         {formatVnPrice(s.price)}
@@ -723,9 +771,22 @@ export default function AlphaPage() {
                         {index + 1}
                       </td>
                       <td className="px-1.5 py-1.5">
-                        <Link href={`/?symbol=${s.symbol}`} className="font-black text-base text-blue-950 hover:underline tracking-wider">
-                          {s.symbol}
-                        </Link>
+                        <div className="flex items-center gap-1.5">
+                          <Link href={`/?symbol=${s.symbol}`} className="font-black text-base text-blue-950 hover:underline tracking-wider">
+                            {s.symbol}
+                          </Link>
+                          <button
+                            onClick={() => copyClientBrief(s, mode)}
+                            title="Sao chép khuyến nghị tư vấn khách hàng (Zalo/Telegram)"
+                            className="p-1 text-gray-400 hover:text-blue-700 hover:bg-blue-100 rounded transition"
+                          >
+                            {copiedSymbol === s.symbol ? (
+                              <Check size={13} className="text-emerald-600 font-bold" />
+                            ) : (
+                              <Copy size={12} />
+                            )}
+                          </button>
+                        </div>
                       </td>
                       <td className="px-1.5 py-1.5 text-right font-black font-mono text-gray-900 text-base">
                         {formatVnPrice(s.price)}

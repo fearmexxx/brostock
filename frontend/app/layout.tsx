@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
-import Link from "next/link";
 import "./globals.css";
 import { GlobalHUD } from "@/components/GlobalHUD";
+import { Navbar } from "@/components/Navbar";
+import { Footer } from "@/components/Footer";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -15,8 +16,10 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "BroStock Pro - Institutional Terminal",
-  description: "Advanced Vietnamese Stock Market Analysis Terminal",
+  title: "BroStock Pro — VBE Agency Institutional Terminal",
+  description: "Nền tảng phân tích định lượng, quét tín hiệu Alpha và dòng tiền phái sinh VN30F dành cho VBE Agency (vbe.com.vn).",
+  keywords: ["chứng khoán", "phân tích định lượng", "VBE Agency", "VN30F", "cổ phiếu", "Alpha"],
+  authors: [{ name: "VBE Agency", url: "https://vbe.com.vn" }],
 };
 
 export default function RootLayout({
@@ -27,32 +30,14 @@ export default function RootLayout({
   return (
     <html lang="vi">
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased bg-gray-50`}
+        className={`${geistSans.variable} ${geistMono.variable} antialiased bg-gray-50 flex flex-col min-h-screen`}
       >
         <GlobalHUD />
-        <nav className="bg-[#1e3a8a] text-white shadow-md">
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                <div className="flex items-center h-16 gap-8">
-                    <div className="flex-shrink-0 font-bold text-xl tracking-wider">
-                        BROSTOCK
-                    </div>
-                    <div className="hidden md:block">
-                        <div className="flex items-baseline space-x-4">
-                            <Link href="/" className="hover:bg-blue-700 px-3 py-2 rounded-md text-sm font-medium">Bảng điều khiển</Link>
-                            <Link href="/market" className="hover:bg-blue-700 px-3 py-2 rounded-md text-sm font-medium">Thị trường</Link>
-                            <Link href="/alpha" className="hover:bg-blue-700 px-3 py-2 rounded-md text-sm font-medium text-amber-300 font-bold">Alpha</Link>
-                            <Link href="/derivatives" className="hover:bg-blue-700 px-3 py-2 rounded-md text-sm font-medium text-emerald-300 font-bold">Phái sinh</Link>
-                            <Link href="/portfolio" className="hover:bg-blue-700 px-3 py-2 rounded-md text-sm font-medium">Danh mục</Link>
-                            <Link href="/backtest" className="hover:bg-blue-700 px-3 py-2 rounded-md text-sm font-medium">Kiểm thử</Link>
-                            <Link href="/doc" className="hover:bg-blue-700 px-3 py-2 rounded-md text-sm font-medium text-cyan-300 font-bold">Thuật toán (DOC)</Link>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </nav>
-        <main>
-            {children}
+        <Navbar />
+        <main className="flex-grow">
+          {children}
         </main>
+        <Footer />
       </body>
     </html>
   );
