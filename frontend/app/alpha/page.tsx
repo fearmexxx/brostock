@@ -188,7 +188,7 @@ export default function AlphaPage() {
     const avgReturn = isSwing ? s.bt_avg_return : s.lt_bt_avg_return
 
     const brief = [
-      `📊 [VBE AGENCY - KHUYẾN NGHỊ ĐẦU TƯ]`,
+      `📊 [FENWEALTH - TÍN HIỆU ĐẦU TƯ TÍCH SẢN]`,
       `Mã cổ phiếu: ${s.symbol} (${SECTOR_MAP[s.symbol] || "Thị trường chung"})`,
       `Giá hiện tại: ${formatVnPrice(s.price)} VNĐ (${s.pct_change >= 0 ? "+" : ""}${s.pct_change.toFixed(2)}%)`,
       `Chiến lược: ${isSwing ? "Swing Trading (T+15)" : "Tích luỹ Nắm giữ (3-6 Tháng)"}`,
@@ -198,7 +198,7 @@ export default function AlphaPage() {
       `Tỷ lệ R:R: ${rr ? rr.toFixed(1) : "2.0"}:1`,
       winRate !== undefined ? `Hiệu suất kiểm thử: Thắng ${winRate}% | Lời TB: ${(avgReturn ?? 0) >= 0 ? "+" : ""}${(avgReturn ?? 0).toFixed(2)}% (Đã trừ thuế & phí 0.4%)` : null,
       `--`,
-      `👉 Phân tích chi tiết: https://vbe.com.vn | Terminal BroStock Pro`,
+      `👉 Nền tảng: BroStock Pro by Học viện FENWEALTH`,
     ].filter(Boolean).join("\n")
 
     if (navigator.clipboard) {

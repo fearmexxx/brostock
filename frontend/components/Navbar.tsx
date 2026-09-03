@@ -43,16 +43,13 @@ export function Navbar() {
               </span>
             </Link>
             
-            <a 
-              href="https://vbe.com.vn" 
-              target="_blank" 
-              rel="noopener noreferrer" 
-              className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-blue-950/80 text-blue-200 border border-blue-700/60 hover:bg-blue-800 hover:text-white transition shadow-sm"
-              title="VBE Agency Official Website"
+            <div 
+              className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-400/15 text-amber-300 border border-amber-400/40 shadow-sm"
+              title="Học viện FENWEALTH — Đầu tư tích sản & Quản trị tài chính"
             >
-              <span>VBE Agency</span>
-              <ExternalLink size={10} />
-            </a>
+              <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse"></span>
+              <span>Học viện FENWEALTH</span>
+            </div>
           </div>
 
           {/* Desktop Navigation */}
@@ -118,16 +115,9 @@ export function Navbar() {
             );
           })}
           
-          <div className="pt-3 mt-2 border-t border-blue-900/80 flex items-center justify-between text-xs text-blue-300 px-2">
-            <span>Powered by VBE Agency</span>
-            <a 
-              href="https://vbe.com.vn" 
-              target="_blank" 
-              rel="noopener noreferrer"
-              className="underline hover:text-white"
-            >
-              vbe.com.vn
-            </a>
+          <div className="pt-3 mt-2 border-t border-blue-900/80 flex items-center justify-between text-xs text-amber-200/80 px-2">
+            <span>Học viện FENWEALTH</span>
+            <span className="text-[11px] text-blue-200 font-normal">Đầu tư tích sản</span>
           </div>
         </div>
       )}

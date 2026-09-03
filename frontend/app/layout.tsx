@@ -16,10 +16,10 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "BroStock Pro — VBE Agency Institutional Terminal",
-  description: "Nền tảng phân tích định lượng, quét tín hiệu Alpha và dòng tiền phái sinh VN30F dành cho VBE Agency (vbe.com.vn).",
-  keywords: ["chứng khoán", "phân tích định lượng", "VBE Agency", "VN30F", "cổ phiếu", "Alpha"],
-  authors: [{ name: "VBE Agency", url: "https://vbe.com.vn" }],
+  title: "BroStock Pro — FENWEALTH Terminal Đầu Tư Tích Sản",
+  description: "Nền tảng phân tích định lượng, sàng lọc cổ phiếu Alpha và dòng tiền phái sinh VN30F thuộc Học viện FENWEALTH — Đầu tư tích sản & Quản trị tài chính thịnh vượng.",
+  keywords: ["chứng khoán", "đầu tư tích sản", "FENWEALTH", "tích sản cổ phiếu", "VN30F", "cổ phiếu", "Alpha"],
+  authors: [{ name: "Học viện FENWEALTH" }],
 };
 
 export default function RootLayout({

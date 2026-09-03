@@ -47,7 +47,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-app = FastAPI(title="BroStock API & Bot — VBE Agency Edition", version="2.6.0")
+app = FastAPI(title="BroStock Pro API & Bot — FENWEALTH Terminal", version="2.6.0")
 
 # Enable CORS
 _raw_origins = os.getenv("ALLOWED_ORIGINS", "")
@@ -56,7 +56,7 @@ ALLOWED_ORIGINS = [o.strip() for o in _raw_origins.split(",") if o.strip()]
 app.add_middleware(
     CORSMiddleware,
     allow_origins=ALLOWED_ORIGINS if ALLOWED_ORIGINS else ["*"],
-    allow_origin_regex=r"https://.*\.vercel\.app|http://localhost:.*|https://.*\.vbe\.com\.vn|https://vbe\.com\.vn|http://.*\.vbe\.com\.vn",
+    allow_origin_regex=r"https://.*\.vercel\.app|http://localhost:.*|https://.*\.fenwealth\..*|https://fenwealth\..*",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -662,8 +662,8 @@ async def health_check():
 
     return {
         "status": "healthy",
-        "service": "BroStock Pro - Institutional Terminal",
-        "agency": "VBE Agency (vbe.com.vn)",
+        "service": "BroStock Pro - Quantitative Terminal",
+        "academy": "Học viện FENWEALTH (Đầu tư tích sản)",
         "version": "2.6.0",
         "timestamp": datetime.now().isoformat(),
         "database": db_status,
@@ -676,17 +676,17 @@ async def health_check():
         }
     }
 
-@app.get("/api/agency/info")
-async def agency_info():
+@app.get("/api/academy/info")
+@app.get("/api/platform/info")
+async def academy_info():
     return {
         "platform": "BroStock Pro",
-        "agency": "VBE Agency",
-        "website": "https://vbe.com.vn",
-        "description": "Nền tảng phân tích định lượng và cảnh báo tín hiệu thị trường chứng khoán Việt Nam dành cho khách hàng & chuyên viên tư vấn VBE Agency.",
-        "support_email": "contact@vbe.com.vn",
+        "academy": "Học viện FENWEALTH",
+        "mission": "Đầu tư tích sản & Quản trị tài chính thịnh vượng",
+        "description": "Nền tảng phân tích định lượng và sàng lọc cơ hội tích sản cổ phiếu Việt Nam phục vụ học viên & nhà đầu tư Học viện FENWEALTH.",
         "features": [
             "Multi-Factor Conviction Engine v2.6 (-100 đến +100)",
-            "BroStock Alpha Top 100 Cơ hội (Swing T+15 & Long-term 3-6M)",
+            "BroStock Alpha Top 100 Cơ hội (Swing T+15 & Tích luỹ dài hạn 3-6M)",
             "Real-Money Empirical Backtest Engine (Đã trừ thuế phí 0.4%)",
             "Định hướng Phái sinh VN30F & Scalping ATR",
             "Smart Money Shark Flow Tracker (Dòng tiền tay to)"
