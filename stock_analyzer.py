@@ -367,21 +367,52 @@ def calculate_trend_metrics(df):
     elif adx < 15: # Range Market
         w_trend, w_mr = 0.15, 0.35
         
-    # Final Score
+    # Foreign Flow impact (if foreign buy/sell data available in columns)
+    foreign_score = 0
+    if 'foreign_buy_vol' in df.columns and 'foreign_sell_vol' in df.columns:
+        f_net = df['foreign_buy_vol'] - df['foreign_sell_vol']
+        recent_f_net = f_net.tail(3)
+        if (recent_f_net > 0).all():
+            foreign_score = 5  # Foreign buying consecutive 3 sessions
+        elif (recent_f_net < 0).all():
+            foreign_score = -5 # Foreign dumping
+
+    # Final Score with Foreign Flow boost
     raw_score = (trend_score * w_trend + 
                  mom_score * w_mom + 
                  vol_score * w_vol + 
                  vlt_score * w_vlt + 
-                 mr_score * w_mr)
+                 mr_score * w_mr) + (foreign_score * 0.10)
     
-    # Map raw factors to -100 to +100 range
-    # Theoretical max raw is ~30 (if weights were 1.0)
-    # But since weights sum to 1.0, max is ~25-30. 
     # Let's normalize by assuming max possible components
     final_score = max(min(raw_score * 4, 100), -100) 
+
+    # --- Penny & Liquidity Trap Filter (Vietnam Protection) ---
+    # Trap Criteria: Price < 5,000 VND OR Avg Volume 20d < 150,000 OR Sàn liên tiếp không thanh khoản
+    avg_vol_20 = df['volume'].tail(20).mean() if len(df) >= 20 else df['volume'].mean()
+    is_penny = current_price < 5000
+    is_illiquid = avg_vol_20 < 150000
+    
+    # Detect floor lock (giá sàn mất thanh khoản): low price volatility with huge down drop
+    floor_locked = False
+    if len(df) >= 3:
+        last_3_drops = (df['close'].tail(3).pct_change().dropna() <= -0.065).all() # HOSE floor -7%
+        vol_drying = df['volume'].iloc[-1] < (avg_vol_20 * 0.3)
+        floor_locked = bool(last_3_drops and vol_drying)
+
+    is_trap_risk = bool(is_penny or is_illiquid or floor_locked)
+    trap_reasons = []
+    if is_penny: trap_reasons.append("Thị giá < 5.000đ (Penny)")
+    if is_illiquid: trap_reasons.append(f"Thanh khoản thấp ({int(avg_vol_20):,} cp/phiên)")
+    if floor_locked: trap_reasons.append("Nguy cơ sàn cứng mất thanh khoản")
+
+    # If trap risk detected, suppress positive buy conviction to protect retail traders
+    if is_trap_risk and final_score > 0:
+        final_score = min(final_score, 10) # Cap at neutral
     
     # Labels
-    if final_score >= 60: label = 'Strong Buy'
+    if is_trap_risk and floor_locked: label = 'Danger'
+    elif final_score >= 60: label = 'Strong Buy'
     elif final_score >= 25: label = 'Buy'
     elif final_score >= 10: label = 'Bullish Bias'
     elif final_score > -10: label = 'Neutral'
@@ -466,6 +497,9 @@ def calculate_trend_metrics(df):
         'adx': adx,
         'liquidity_status': liquidity_status,
         'avg_vol_20': float(avg_vol_20) if pd.notnull(avg_vol_20) else 0.0,
+        'is_trap_risk': is_trap_risk,
+        'trap_reasons': trap_reasons,
+        'foreign_score': foreign_score,
         'factors': {
             'trend': normalize(trend_score, 30),
             'momentum': normalize(mom_score, 20),

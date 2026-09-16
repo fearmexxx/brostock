@@ -438,6 +438,9 @@ async def update_market_data(force=False):
                         "risk_label": m.get('risk_label', 'Low'),
                         "avg_vol_20": m.get('avg_vol_20', 0),
                         "liquidity_status": m.get('liquidity_status', 'Adequate'),
+                        "is_trap_risk": m.get('is_trap_risk', False),
+                        "trap_reasons": m.get('trap_reasons', []),
+                        "foreign_score": m.get('foreign_score', 0),
                         # Long-term accumulation fields
                         "lt_score": lt.get('lt_score', 0),
                         "lt_label": lt.get('lt_label', 'Watch'),
@@ -511,15 +514,23 @@ async def update_market_data(force=False):
                         (signal_strength * 0.40) + (vol_rank_score * 0.30) + (rr_score * 0.30), 4
                     )
                     
-                    # Action labels with STRONG tiers
+                    # Action labels with STRONG tiers & TRAP protection
                     score = item['signal_score']
                     risk = item.get('risk_score', 0)
-                    if score >= 60: item['action'] = "STRONG BUY"
+                    is_trap = item.get('is_trap_risk', False)
+
+                    if is_trap:
+                        item['action'] = "CẢNH BÁO BẪY"
+                    elif score >= 60: 
+                        item['action'] = "STRONG BUY"
                     elif score >= 25:
                         item['action'] = "CẢNH BÁO" if risk > 75 else "BUY"
-                    elif score <= -60: item['action'] = "STRONG SELL"
-                    elif score <= -25: item['action'] = "SELL"
-                    else: item['action'] = "HOLD"
+                    elif score <= -60: 
+                        item['action'] = "STRONG SELL"
+                    elif score <= -25: 
+                        item['action'] = "SELL"
+                    else: 
+                        item['action'] = "HOLD"
                 
                 # Sort by composite alpha score descending
                 alpha_candidates.sort(key=lambda x: x['alpha_rank_score'], reverse=True)
@@ -690,6 +701,47 @@ async def academy_info():
             "Real-Money Empirical Backtest Engine (Đã trừ thuế phí 0.4%)",
             "Định hướng Phái sinh VN30F & Scalping ATR",
             "Smart Money Shark Flow Tracker (Dòng tiền tay to)"
+        ]
+    }
+
+@app.get("/api/partner/brokers")
+async def get_partner_brokers():
+    return {
+        "academy": "Học viện FENWEALTH",
+        "benefits": [
+            "Miễn phí phí giao dịch cơ sở trong 6 tháng đầu (tùy CTCK)",
+            "Tặng quyền truy cập Bot Telegram / Zalo VIP nhận tín hiệu Realtime",
+            "Được tham gia nhóm tư vấn Tích sản Thực chiến định kỳ hàng tuần cùng FENWEALTH",
+            "Hỗ trợ phân tích danh mục 1-1 miễn phí"
+        ],
+        "partners": [
+            {
+                "id": "vps",
+                "name": "VPS Securities",
+                "short_desc": "Thị phần số 1 Việt Nam - Phí cực thấp, margin cao",
+                "referral_code": "FENWEALTH",
+                "referral_link": "https://openaccount.vps.com.vn/?MKTID=FENWEALTH",
+                "badge": "Phổ biến nhất",
+                "fee_desc": "0.1% hoặc gói Zero Fee"
+            },
+            {
+                "id": "tcbs",
+                "name": "Techcom Securities (TCBS)",
+                "short_desc": "Hệ sinh thái công nghệ iCopy, phù hợp đầu tư tích sản cổ phiếu & trái phiếu",
+                "referral_code": "105C989898",
+                "referral_link": "https://tcinvest.tcbs.com.vn/open-account?ref=105C989898",
+                "badge": "Chuẩn Tích Sản",
+                "fee_desc": "0.03% (Zero Fee tích sản)"
+            },
+            {
+                "id": "dnse",
+                "name": "DNSE Securities",
+                "short_desc": "Công nghệ hiện đại, miễn phí giao dịch trọn đời, quản trị theo từng deal",
+                "referral_code": "FENWEALTH_VIP",
+                "referral_link": "https://www.dnse.com.vn/mo-tai-khoan?ref=FENWEALTH_VIP",
+                "badge": "Miễn Phí Trọn Đời",
+                "fee_desc": "0.0% trọn đời"
+            }
         ]
     }
 

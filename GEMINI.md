@@ -72,8 +72,19 @@
 - **Mean Reversion Fix:** RSI bearish threshold corrected from > 75 to > 70 (symmetric with RSI < 30).
 - **Target Price & Stop Loss:** ATR×2 target with ATR×1.5 stop-loss (capped at ±5%). Risk:Reward ratio computed for every stock.
 - **Composite Alpha Ranking:** Replaced volume-only ranking with Signal Strength (40%) + Volume Rank (30%) + Risk:Reward (30%) composite score.
-- **Smart Filtering:** Liquidity filter (avg_vol_20d ≥ 100K), Risk filter (score > 75 → "CẢNH BÁO" instead of BUY).
-- **Lowered Thresholds:** BUY ≥ 25 (was 40), SELL ≤ -25 (was -40). Added STRONG BUY ≥ 60, STRONG SELL ≤ -60.
-- **Dashboard v2.0:** New columns: Mục tiêu (Target), Cắt lỗ (Stop Loss), R:R ratio with color-coded badges.
+### September 8, 2026: Liquidity Farming Platform Fee (0.0001 ETH) & Web3 Dialog Engine
+- **Platform Protocol Fee (0.0001 ETH):** Configured automated protocol fee of `0.0001 ETH` on every Liquidity Farming provision transaction, accrued directly to wallet `0xB8E7e8A134463f541AeCb0E3BDbBc85b7F01Eb70`.
+- **Transparent Fee UX:** Displayed the platform protocol fee clearly in the projected LP summary card and within the transaction confirmation modal.
+- **Web3 Dialog & Toast System:** Replaced raw browser `alert()` popups with non-blocking modern Web3 toasts and modal dialogues for wallet interactions, user cancellation handling, and block explorer links.
+- **Verification Matrix Table Alignment:** Fixed cell truncation and wrapping issues on the Robinhood Chain Security & Liquidity Verification Matrix with responsive `min-w` columns.
+- **Pre-Execution Balance Verification & Max Buffer:** Integrated real-time on-chain balance checks prior to submitting swap or LP transactions, preventing MetaMask "Internal JSON-RPC error" caused by attempting to spend more ETH than available including L2 gas and fees. Added instant `MAX` buttons with safe gas buffers.
+
+### September 10, 2026: Full Solana Mainnet Engine & Dual-Chain Wallet Integration
+- **Live Solana Market Data via Helius DAS & RPC:** Implemented `solana_real_engine.py` connecting to Helius RPC (`https://mainnet.helius-rpc.com/?api-key=0a2730e8-927a-4187-980d-16640bd31371`) to index live token prices, circulating supplies, and 24h market caps for top Solana tokens ($WIF, $BONK, $POPCAT, $BOME, $MEW, $SLERF, $MICHI, $MOTHER).
+- **Dual-Chain Wallet Architecture:** Built smart dual-chain provider handling in `index.html`. On Solana, connection defaults to **Backpack** (`window.backpack`), with fallback to **Phantom** (`window.phantom?.solana` / `window.solana`), fetching live SOL balance directly via Helius `getBalance` JSON-RPC. On Robinhood Chain, connection uses EVM provider (`window.ethereum`) with chain ID `4663`.
+- **Instant Client-Side Cache Switching:** Embedded `embeddedSolanaData` alongside `embeddedData` into `index.html` ensuring switching tabs renders live tokens immediately with zero latency, accompanied by real-time background API refresh (`/api/scan?chain=solana`).
+- **Collapsible Backtest Dashboard:** Implemented a space-saving collapsible backtesting HUD with smooth toggle animation, live ROI summary preview, and responsive chart resizing. Powered by quantitative simulation tailored to Solana tokens (+175.6% ROI).
+- **Solana Swap & Raydium LP Hub:** Enhanced Swap and LP modals to dynamically adapt to Solana (SOL and USDC base assets, Raydium CPMM/CLMM routing, Jupiter DEX direct links, and Solscan transaction receipts).
+
 
 

@@ -1,6 +1,15 @@
 # Progress Tracking - BroStock Pro
 
-## Current Status: Phase 7 Complete — FENWEALTH Academy Integration & Commercial Readiness
+## Current Status: Phase 8 Complete — Week 1 Core Upgrade: Trap Filters, Foreign Flow & Brokerage Referral Hub
+
+## Completed Tasks - Phase 8 (Week 1 Core Upgrade & Brokerage Commission Funnel)
+- [x] **Penny & Trap Risk Filter:** Integrated rigorous retail protection filter (`is_trap_risk`, `trap_reasons`) detecting Penny stocks (< 5.000đ), ultra-illiquid symbols (< 150k shares/day), and floor-locked selling traps.
+- [x] **Conviction Safety Cap:** Suppressed positive BUY conviction on dangerous trap stocks, reclassifying them with warning labels (`CẢNH BÁO BẪY` / `BẪY GIÁ`) to protect retail investors.
+- [x] **Foreign Flow Factor:** Added institutional foreign accumulation weighting (`foreign_score`, +5 for 3-day continuous buying, -5 for dumping).
+- [x] **Brokerage Referral Endpoint:** Added `/api/partner/brokers` delivering curated partner broker info (VPS, TCBS, DNSE), referral codes, zero-fee promotions, and FENWEALTH VIP perks.
+- [x] **Broker Referral Modal Component:** Built interactive `BrokerReferralModal.tsx` allowing 1-click E-KYC onboarding, referral code copying, and FENWEALTH VIP Room access explanation.
+- [x] **Alpha Table Referral CTA:** Added prominent "Đối Tác FENWEALTH" action column with `[Nhận Kèo VIP]` buttons and Lead Magnet banner on `/alpha` across both Swing and Long-term modes.
+- [x] **Build & Type Safety Verified:** Passed clean TypeScript compilation (`tsc --project tsconfig.json --noEmit`) and Python syntax checks (`py_compile`).
 
 ## Completed Tasks - Phase 7 (FENWEALTH Academy Ecosystem & Go-Live Readiness)
 - [x] **Standalone Positioning:** BroStock Pro is structured as a specialized quantitative terminal belonging to **Học viện FENWEALTH** (Đầu tư tích sản).

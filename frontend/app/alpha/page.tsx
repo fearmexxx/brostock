@@ -2,9 +2,10 @@
 
 import { useEffect, useState, useCallback } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { ArrowUp, ArrowDown, Award, BarChart3, Search, ChevronUp, ChevronDown, Calendar, LineChart, PieChart as PieIcon, Layers, Copy, Check, Share2 } from "lucide-react"
+import { ArrowUp, ArrowDown, Award, BarChart3, Search, ChevronUp, ChevronDown, Calendar, LineChart, PieChart as PieIcon, Layers, Copy, Check, Share2, Sparkles, ShieldAlert, Gift } from "lucide-react"
 import Link from "next/link"
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts"
+import BrokerReferralModal from "@/components/BrokerReferralModal"
 
 const SECTOR_MAP: Record<string, string> = {
   // Ngân hàng (Banks)
@@ -121,6 +122,9 @@ interface AlphaStock {
   risk_score: number;
   risk_label: string;
   alpha_rank_score: number;
+  is_trap_risk?: boolean;
+  trap_reasons?: string[];
+  foreign_score?: number;
   
   // Long-term accumulation fields
   lt_score: number;
@@ -173,6 +177,13 @@ export default function AlphaPage() {
   const [sortBy, setSortBy] = useState<SortField>("conviction")
   const [sortOrder, setSortOrder] = useState<"desc" | "asc">("desc")
   const [copiedSymbol, setCopiedSymbol] = useState<string | null>(null)
+  const [modalOpen, setModalOpen] = useState(false)
+  const [selectedStockForModal, setSelectedStockForModal] = useState<{ symbol: string; action: string } | null>(null)
+
+  const openBrokerModal = (symbol?: string, action?: string) => {
+    setSelectedStockForModal(symbol ? { symbol, action: action || "KHUYẾN NGHỊ" } : null)
+    setModalOpen(true)
+  }
 
   const copyClientBrief = (s: AlphaStock, currentMode: "swing" | "longterm") => {
     const isSwing = currentMode === "swing"
@@ -289,6 +300,7 @@ export default function AlphaPage() {
       case "BUY": return "bg-green-600 text-white"
       case "STRONG SELL": return "bg-red-700 text-white ring-2 ring-red-400/50"
       case "SELL": return "bg-red-600 text-white"
+      case "CẢNH BÁO BẪY": return "bg-rose-700 text-white animate-pulse ring-2 ring-rose-400"
       case "CẢNH BÁO": return "bg-amber-500 text-black"
       default: return "bg-gray-100 text-gray-600"
     }
@@ -300,6 +312,7 @@ export default function AlphaPage() {
       case "BUY": return "MUA"
       case "STRONG SELL": return "BÁN MẠNH"
       case "SELL": return "BÁN"
+      case "CẢNH BÁO BẪY": return "BẪY GIÁ"
       case "CẢNH BÁO": return "CẢNH BÁO"
       default: return "NẮM GIỮ"
     }
@@ -385,31 +398,66 @@ export default function AlphaPage() {
             <p className="text-gray-500 mt-1">Hệ thống xếp hạng tổng hợp Top 100 cơ hội thị trường Việt Nam (Lợi nhuận ròng đã trừ thuế & phí 0.4%)</p>
           </div>
           
-          {/* Mode Switcher */}
-          <div className="flex gap-2 bg-gray-200/60 p-1.5 rounded-lg border border-gray-300 shadow-inner">
+          {/* Mode Switcher & Broker CTA Button */}
+          <div className="flex flex-wrap items-center gap-3">
             <button
-              onClick={() => handleModeChange("swing")}
-              className={`flex items-center gap-1.5 px-4 py-2 rounded-md text-xs font-bold transition-all duration-155 uppercase ${
-                mode === "swing" 
-                  ? "bg-[#1e3a8a] text-white shadow-sm" 
-                  : "text-gray-650 hover:bg-gray-100"
-              }`}
+              onClick={() => openBrokerModal()}
+              className="flex items-center gap-2 px-4 py-2 rounded-lg bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-black text-xs uppercase shadow-md transition transform active:scale-95"
             >
-              <LineChart size={14} />
-              Swing Trading (T+15)
+              <Gift size={15} />
+              Mở TK Đối Tác (VIP Bot)
             </button>
-            <button
-              onClick={() => handleModeChange("longterm")}
-              className={`flex items-center gap-1.5 px-4 py-2 rounded-md text-xs font-bold transition-all duration-155 uppercase ${
-                mode === "longterm" 
-                  ? "bg-[#1e3a8a] text-white shadow-sm" 
-                  : "text-gray-650 hover:bg-gray-100"
-              }`}
-            >
-              <Calendar size={14} />
-              Tích lũy Dài hạn (3-6M)
-            </button>
+
+            <div className="flex gap-2 bg-gray-200/60 p-1.5 rounded-lg border border-gray-300 shadow-inner">
+              <button
+                onClick={() => handleModeChange("swing")}
+                className={`flex items-center gap-1.5 px-4 py-2 rounded-md text-xs font-bold transition-all duration-155 uppercase ${
+                  mode === "swing" 
+                    ? "bg-[#1e3a8a] text-white shadow-sm" 
+                    : "text-gray-650 hover:bg-gray-100"
+                }`}
+              >
+                <LineChart size={14} />
+                Swing Trading (T+15)
+              </button>
+              <button
+                onClick={() => handleModeChange("longterm")}
+                className={`flex items-center gap-1.5 px-4 py-2 rounded-md text-xs font-bold transition-all duration-155 uppercase ${
+                  mode === "longterm" 
+                    ? "bg-[#1e3a8a] text-white shadow-sm" 
+                    : "text-gray-650 hover:bg-gray-100"
+                }`}
+              >
+                <Calendar size={14} />
+                Tích lũy Dài hạn (3-6M)
+              </button>
+            </div>
           </div>
+        </div>
+
+        {/* FENWEALTH Partner Lead Magnet Banner */}
+        <div className="bg-gradient-to-r from-blue-900 via-indigo-900 to-slate-900 rounded-xl p-4 text-white flex flex-col md:flex-row justify-between items-start md:items-center gap-4 shadow-md border border-blue-800/40">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <span className="px-2 py-0.5 rounded-full bg-amber-400 text-amber-950 text-[10px] font-black uppercase tracking-wider">
+                ĐẶC QUYỀN HỘI VIÊN FENWEALTH
+              </span>
+              <span className="text-xs text-blue-200 font-medium">Đối tác chính thức: VPS, TCBS, DNSE</span>
+            </div>
+            <h4 className="text-sm md:text-base font-bold text-white">
+              Nhận tín hiệu Realtime trong phiên & Miễn phí giao dịch trọn đời
+            </h4>
+            <p className="text-xs text-blue-200/80">
+              Mở tài khoản E-KYC 3 phút gắn mã FENWEALTH để tự động kích hoạt Bot Telegram VIP và tham gia Room Zoom Tích Sản mỗi tuần.
+            </p>
+          </div>
+          <button
+            onClick={() => openBrokerModal()}
+            className="shrink-0 px-5 py-2.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-amber-950 font-black text-xs uppercase tracking-wider shadow-lg transition transform active:scale-95 flex items-center gap-2"
+          >
+            <Sparkles size={15} />
+            Đăng Ký Nhận Kèo VIP
+          </button>
         </div>
 
         {/* Controls */}
@@ -633,6 +681,7 @@ export default function AlphaPage() {
                       <div className="flex items-center justify-center gap-1">5D <SortIcon field="outlook" /></div>
                     </th>
                     <th className="px-1.5 py-2 text-center text-blue-900">Backtest (T+15)</th>
+                    <th className="px-1.5 py-2 text-center text-amber-700">Đối Tác FENWEALTH</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
@@ -646,6 +695,15 @@ export default function AlphaPage() {
                           <Link href={`/?symbol=${s.symbol}`} className="font-black text-base text-blue-950 hover:underline tracking-wider">
                             {s.symbol}
                           </Link>
+                          {s.is_trap_risk && (
+                            <span 
+                              title={`CẢNH BÁO BẪY: ${(s.trap_reasons || []).join(", ")}`}
+                              className="px-1 py-0.2 rounded text-[9px] font-black bg-rose-100 text-rose-800 border border-rose-300 flex items-center gap-0.5"
+                            >
+                              <ShieldAlert size={10} />
+                              BẪY
+                            </span>
+                          )}
                           <button
                             onClick={() => copyClientBrief(s, mode)}
                             title="Sao chép khuyến nghị tư vấn khách hàng (Zalo/Telegram)"
@@ -726,6 +784,15 @@ export default function AlphaPage() {
                           </div>
                         </div>
                       </td>
+                      <td className="px-1.5 py-1.5 text-center">
+                        <button
+                          onClick={() => openBrokerModal(s.symbol, getActionLabel(s.action))}
+                          className="px-2.5 py-1 rounded-md bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-black text-[11px] uppercase tracking-tight shadow-sm transition transform active:scale-95 flex items-center gap-1 mx-auto"
+                        >
+                          <Gift size={12} />
+                          Nhận Kèo VIP
+                        </button>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -762,6 +829,7 @@ export default function AlphaPage() {
                     </th>
                     <th className="px-1.5 py-2 text-center">Rủi ro (LT)</th>
                     <th className="px-1.5 py-2 text-center text-blue-900">Backtest (T+60)</th>
+                    <th className="px-1.5 py-2 text-center text-amber-700">Đối Tác FENWEALTH</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
@@ -775,6 +843,15 @@ export default function AlphaPage() {
                           <Link href={`/?symbol=${s.symbol}`} className="font-black text-base text-blue-950 hover:underline tracking-wider">
                             {s.symbol}
                           </Link>
+                          {s.is_trap_risk && (
+                            <span 
+                              title={`CẢNH BÁO BẪY: ${(s.trap_reasons || []).join(", ")}`}
+                              className="px-1 py-0.2 rounded text-[9px] font-black bg-rose-100 text-rose-800 border border-rose-300 flex items-center gap-0.5"
+                            >
+                              <ShieldAlert size={10} />
+                              BẪY
+                            </span>
+                          )}
                           <button
                             onClick={() => copyClientBrief(s, mode)}
                             title="Sao chép khuyến nghị tư vấn khách hàng (Zalo/Telegram)"
@@ -854,6 +931,15 @@ export default function AlphaPage() {
                           </div>
                         </div>
                       </td>
+                      <td className="px-1.5 py-1.5 text-center">
+                        <button
+                          onClick={() => openBrokerModal(s.symbol, s.lt_action)}
+                          className="px-2.5 py-1 rounded-md bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-black text-[11px] uppercase tracking-tight shadow-sm transition transform active:scale-95 flex items-center gap-1 mx-auto"
+                        >
+                          <Gift size={12} />
+                          Nhận Kèo VIP
+                        </button>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -861,6 +947,15 @@ export default function AlphaPage() {
             )}
           </CardContent>
         </Card>
+
+        {/* Broker Referral Modal */}
+        <BrokerReferralModal
+          isOpen={modalOpen}
+          onClose={() => setModalOpen(false)}
+          symbol={selectedStockForModal?.symbol}
+          action={selectedStockForModal?.action}
+        />
+
       </div>
     </div>
   )
