@@ -1,6 +1,14 @@
 # Progress Tracking - BroStock Pro
 
-## Current Status: Phase 8 Complete — Week 1 Core Upgrade: Trap Filters, Foreign Flow & Brokerage Referral Hub
+## Current Status: Phase 9 Complete — BroStock Island 3D MMO (Three.js Low-Poly, 300+ CCU & TikTok Live)
+
+## Completed Tasks - Phase 9 (BroStock Island 3D MMO — `/island`)
+- [x] **3D Low-Poly Fortnite-Style Island (`buildWorldMesh.ts` & `IslandScene.tsx`):** Central island in a distant ocean with animated waves, palm trees, and a massive central stadium.
+- [x] **Giant VN-Index & VPS VN100 LED Screen (`ScreenRenderers.ts`):** High-contrast dark-mode VPS SmartOne lightning board (`VN100`, ceiling `#d946ef`, floor `#06b6d4`, green/red/yellow) + real-time `VN-INDEX` chart & direct link to `https://banggia.vps.com.vn/chung-khoan/VN100`.
+- [x] **200-Seat Cinema Stadium:** 10 rows × 20 seats tiered cinema setup rendered in 1 draw call (`THREE.InstancedMesh`). Players can press `E` (or comment `"ngồi"` on TikTok) to sit and watch the board.
+- [x] **Oxy Booth ("Trạm Cấp Cứu Thở Oxy"):** Located on the left side of the giant screen with glowing cyan medical dome, 4 oxygen tanks, rising healing mist particles, and automatic 3D Oxygen Mask attachment when players walk inside or comment `"oxy"` / `"lỗ"`.
+- [x] **Secondary Realtime LED Screens:** Live Crypto screen (`BTC`, `ETH`, `SOL`, `BNB` via direct Binance WebSocket + backend klines), Commodities (`VÀNG XAU/USD`, `DẦU WTI`), and US Stock Indices (`S&P 500`, `NASDAQ 100`, `DOW JONES`, `NVDA`, `TSLA`).
+- [x] **350+ CCU MMO Server & TikTok Live Connector (`backend/island_server.py`):** 10Hz delta-compressed WebSocket (`/ws/island`) + `TikTokLive` unofficial client auto-spawning characters for TikTok viewers on Join/Comment/Like/Gift + built-in 300-player simulator.
 
 ## Completed Tasks - Phase 8 (Week 1 Core Upgrade & Brokerage Commission Funnel)
 - [x] **Penny & Trap Risk Filter:** Integrated rigorous retail protection filter (`is_trap_risk`, `trap_reasons`) detecting Penny stocks (< 5.000đ), ultra-illiquid symbols (< 150k shares/day), and floor-locked selling traps.

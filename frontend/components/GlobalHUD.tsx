@@ -15,12 +15,11 @@ interface MarketStats {
 
 export function GlobalHUD() {
     const [stats, setStats] = useState<MarketStats | null>(null)
-    const [currentTime, setCurrentTime] = useState(new Date())
     const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
     const fetchStats = async () => {
         try {
-            const res = await fetch(`${API_URL}/api/market/overview`)
+            const res = await fetch(`${API_URL}/api/market/hud`)
             if (res.ok) {
                 const data = await res.json()
                 setStats(data)
@@ -32,11 +31,9 @@ export function GlobalHUD() {
 
     useEffect(() => {
         fetchStats()
-        const marketInterval = setInterval(fetchStats, 60000) // 1 minute
-        const clockInterval = setInterval(() => setCurrentTime(new Date()), 1000) // 1 second
+        const marketInterval = setInterval(fetchStats, 120000) // 2 minutes (tối ưu băng thông)
         return () => {
             clearInterval(marketInterval)
-            clearInterval(clockInterval)
         }
     }, [])
 
@@ -110,17 +107,30 @@ export function GlobalHUD() {
                         )}
                     </div>
                     
-                    <div className="flex flex-col items-end border-l border-slate-700 pl-6">
-                        <span className="text-sm font-black tracking-tighter">
-                            {currentTime.toLocaleTimeString('vi-VN', { hour12: false })}
-                        </span>
-                        <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">
-                            {currentTime.toLocaleDateString('vi-VN', { weekday: 'short', day: '2-digit', month: '2-digit', year: 'numeric' })}
-                        </span>
-                    </div>
+                    <HudClock />
                 </div>
 
             </div>
+        </div>
+    )
+}
+
+function HudClock() {
+    const [currentTime, setCurrentTime] = useState<Date | null>(null)
+    useEffect(() => {
+        setCurrentTime(new Date())
+        const t = setInterval(() => setCurrentTime(new Date()), 1000)
+        return () => clearInterval(t)
+    }, [])
+    if (!currentTime) return null
+    return (
+        <div className="flex flex-col items-end border-l border-slate-700 pl-6">
+            <span className="text-sm font-black tracking-tighter">
+                {currentTime.toLocaleTimeString('vi-VN', { hour12: false })}
+            </span>
+            <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">
+                {currentTime.toLocaleDateString('vi-VN', { weekday: 'short', day: '2-digit', month: '2-digit', year: 'numeric' })}
+            </span>
         </div>
     )
 }

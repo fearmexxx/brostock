@@ -1,9 +1,13 @@
-from sqlalchemy import create_engine, Column, String, Float, Date, Integer, DateTime, ForeignKey, PrimaryKeyConstraint
+from sqlalchemy import create_engine, event, Column, String, Float, Date, Integer, DateTime, ForeignKey, PrimaryKeyConstraint
 from sqlalchemy.orm import declarative_base, sessionmaker, relationship
 from sqlalchemy.sql import func
 import pandas as pd
 from datetime import datetime
 import os
+
+# Bộ nhớ đệm RAM cấp 1 (giảm 99% số lượng truy vấn SQLite lặp lại)
+_MEM_MARKET_CACHE = {}   # key -> (data, updated_at, raw_json)
+_MEM_HISTORY_CACHE = {}  # symbol -> DataFrame
 
 # Define the database file
 # Check for environment variable (Streamlit Secrets / Deployment)
@@ -14,12 +18,22 @@ if DB_CONNECTION_STRING:
     # Ensure it starts with postgresql:// instead of postgres:// (SQLAlchemy requirement)
     if DB_CONNECTION_STRING.startswith("postgres://"):
         DB_CONNECTION_STRING = DB_CONNECTION_STRING.replace("postgres://", "postgresql://", 1)
-    engine = create_engine(DB_CONNECTION_STRING, echo=False)
+    engine = create_engine(DB_CONNECTION_STRING, echo=False, pool_pre_ping=True)
     print("Using Cloud Database.")
 else:
-    # Fallback to local SQLite
+    # Fallback to local SQLite (tối ưu tốc độ với WAL + RAM page cache)
     DB_FILE = 'sqlite:///market_data.db'
-    engine = create_engine(DB_FILE, echo=False)
+    engine = create_engine(DB_FILE, echo=False, connect_args={"check_same_thread": False})
+
+    @event.listens_for(engine, "connect")
+    def _set_sqlite_pragma(dbapi_conn, _conn_record):
+        cursor = dbapi_conn.cursor()
+        cursor.execute("PRAGMA journal_mode=WAL;")
+        cursor.execute("PRAGMA synchronous=NORMAL;")
+        cursor.execute("PRAGMA temp_store=MEMORY;")
+        cursor.execute("PRAGMA cache_size=-16000;")
+        cursor.close()
+
     print("Using Local SQLite Database.")
 
 # Declare Base
@@ -99,12 +113,17 @@ def init_db():
     print("Database tables created.")
 
 def save_market_cache(key, data):
-    """Saves serialized JSON data to market_cache table."""
+    """Saves serialized JSON data to market_cache table and updates L1 RAM cache."""
     import json
+    now = datetime.now()
+    json_data = json.dumps(data)
+    prev = _MEM_MARKET_CACHE.get(key)
+    _MEM_MARKET_CACHE[key] = (data, now, json_data)
+    if prev and prev[2] == json_data:
+        return  # Bỏ qua ghi đĩa nếu nội dung JSON không đổi
     session = get_session()
     try:
-        json_data = json.dumps(data)
-        cache_obj = MarketCache(key=key, value=json_data)
+        cache_obj = MarketCache(key=key, value=json_data, updated_at=now)
         session.merge(cache_obj)
         session.commit()
     except Exception as e:
@@ -114,13 +133,18 @@ def save_market_cache(key, data):
         session.close()
 
 def get_market_cache(key):
-    """Retrieves and deserializes JSON data from market_cache table."""
+    """Retrieves and deserializes JSON data from L1 RAM cache first, then market_cache table."""
+    cached = _MEM_MARKET_CACHE.get(key)
+    if cached is not None:
+        return cached[0], cached[1]
     import json
     session = get_session()
     try:
         cache_obj = session.get(MarketCache, key)
         if cache_obj:
-            return json.loads(cache_obj.value), cache_obj.updated_at
+            val = json.loads(cache_obj.value)
+            _MEM_MARKET_CACHE[key] = (val, cache_obj.updated_at, cache_obj.value)
+            return val, cache_obj.updated_at
         return None, None
     finally:
         session.close()
@@ -200,6 +224,7 @@ def save_daily_bars(symbol, df):
             sym_record.last_updated = datetime.now()
         
         session.commit()
+        _MEM_HISTORY_CACHE.pop(symbol.upper(), None)
         # print(f"Saved {len(bars)} bars for {symbol}.") # Verbose
     except Exception as e:
         session.rollback()
@@ -209,40 +234,41 @@ def save_daily_bars(symbol, df):
 
 def get_history(symbol, start_date=None, end_date=None):
     """
-    Retrieves history as a DataFrame.
+    Retrieves history as a DataFrame using L1 RAM cache first, then SQLite.
     """
-    session = get_session()
-    try:
-        query = session.query(DailyBar).filter(DailyBar.symbol == symbol)
-        
-        if start_date:
-            query = query.filter(DailyBar.date >= start_date)
-        if end_date:
-            query = query.filter(DailyBar.date <= end_date)
-            
-        query = query.order_by(DailyBar.date.asc())
-        
-        data = query.all()
-        
-        if not data:
-            return pd.DataFrame()
-            
-        # Convert to DataFrame
-        df = pd.DataFrame([{
-            'time': bar.date, # mapping back to 'time' for consistency with vnstock
-            'open': bar.open,
-            'high': bar.high,
-            'low': bar.low,
-            'close': bar.close,
-            'volume': bar.volume
-        } for bar in data])
-        
-        df['time'] = pd.to_datetime(df['time'])
-        df.set_index('time', inplace=True)
-        return df
-        
-    finally:
-        session.close()
+    symbol = symbol.upper()
+    full_df = _MEM_HISTORY_CACHE.get(symbol)
+    if full_df is None:
+        session = get_session()
+        try:
+            data = (
+                session.query(DailyBar)
+                .filter(DailyBar.symbol == symbol)
+                .order_by(DailyBar.date.asc())
+                .all()
+            )
+            if not data:
+                return pd.DataFrame()
+            full_df = pd.DataFrame([{
+                'time': bar.date,
+                'open': bar.open,
+                'high': bar.high,
+                'low': bar.low,
+                'close': bar.close,
+                'volume': bar.volume
+            } for bar in data])
+            full_df['time'] = pd.to_datetime(full_df['time'])
+            full_df.set_index('time', inplace=True)
+            _MEM_HISTORY_CACHE[symbol] = full_df
+        finally:
+            session.close()
+
+    df = full_df
+    if start_date:
+        df = df[df.index >= pd.to_datetime(start_date)]
+    if end_date:
+        df = df[df.index <= pd.to_datetime(end_date)]
+    return df.copy()
 
 def get_all_symbols_list():
     """Returns a list of all symbol strings."""

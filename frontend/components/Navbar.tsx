@@ -13,6 +13,7 @@ import {
   Briefcase, 
   RotateCcw, 
   BookOpen, 
+  Globe,
   ExternalLink 
 } from "lucide-react";
 
@@ -25,6 +26,7 @@ export function Navbar() {
     { href: "/market", label: "Thị trường", icon: BarChart3 },
     { href: "/alpha", label: "Alpha", icon: Award, highlight: "text-amber-300 font-extrabold" },
     { href: "/derivatives", label: "Phái sinh", icon: Zap, highlight: "text-emerald-300 font-extrabold" },
+    { href: "/island", label: "Đảo 3D (LIVE)", icon: Globe, highlight: "text-pink-300 font-extrabold" },
     { href: "/portfolio", label: "Danh mục", icon: Briefcase },
     { href: "/backtest", label: "Kiểm thử", icon: RotateCcw },
     { href: "/doc", label: "Thuật toán (DOC)", icon: BookOpen, highlight: "text-cyan-300 font-bold" },

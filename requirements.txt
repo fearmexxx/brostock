@@ -11,5 +11,7 @@ psycopg2-binary
 supabase
 fastapi
 uvicorn
+websockets
+TikTokLive
 python-telegram-bot
 python-dotenv

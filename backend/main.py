@@ -1,5 +1,6 @@
 from fastapi import FastAPI, HTTPException, Depends, Path
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from pydantic import BaseModel
 from typing import List, Optional
 import sys
@@ -32,7 +33,7 @@ from stock_analyzer import (
 from backtester import run_backtest
 from derivatives_analyzer import get_vn30_data, calculate_vn30f_signal, get_signal_history
 from database import (
-    place_trade, get_portfolio, save_market_cache, get_market_cache, init_db
+    place_trade, get_portfolio, save_market_cache, get_market_cache, get_history, init_db
 )
 from vnstock import Listing, Quote
 
@@ -53,6 +54,7 @@ app = FastAPI(title="BroStock Pro API & Bot — FENWEALTH Terminal", version="2.
 _raw_origins = os.getenv("ALLOWED_ORIGINS", "")
 ALLOWED_ORIGINS = [o.strip() for o in _raw_origins.split(",") if o.strip()]
 
+app.add_middleware(GZipMiddleware, minimum_size=500)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=ALLOWED_ORIGINS if ALLOWED_ORIGINS else ["*"],
@@ -366,7 +368,7 @@ async def update_market_data(force=False):
         if cached_eod == today_str:
             return # EOD update already completed today, skip API calls
 
-    if not force and not is_trading_time() and not is_eod and market_cache["last_updated"]:
+    if not force and market_cache.get("last_updated"):
         return
 
     print(f"Updating market data... (Force: {force})")
@@ -651,6 +653,63 @@ async def shutdown_event():
         await app.state.tg_app.stop()
         await app.state.tg_app.shutdown()
 
+# --- Đảo Chứng Sĩ 3D (BroStock Island MMO) ---
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+from island_server import register_island
+
+_vnindex_hist = {"data": [], "ts": 0.0}
+_VN30_PRIORITY = {
+    "VCB", "FPT", "HPG", "SSI", "TCB", "VPB", "MBB", "STB", "ACB", "VNM",
+    "MWG", "CTG", "BID", "VHM", "VIC", "VRE", "SHB", "TPB", "HDB", "VIB",
+    "LPB", "MSN", "GAS", "GVR", "PNJ", "DGC", "VND", "BSR", "POW", "PVD",
+    "OCB", "MSB", "KDH", "EIB",
+}
+
+def island_vn_provider():
+    """Đọc trực tiếp dữ liệu tĩnh/cache từ BroStock Core (market_cache & SQLite daily_bars), không gọi API ngoài."""
+    if not market_cache.get("indices") or not market_cache.get("alpha"):
+        try:
+            load_cache_from_db()
+        except Exception as e:
+            logger.warning(f"[Island] load_cache_from_db: {e}")
+
+    if not _vnindex_hist["data"]:
+        try:
+            df = get_history("VNINDEX")
+            if df is not None and not df.empty:
+                _vnindex_hist["data"] = [round(float(v), 2) for v in df["close"].tail(90).tolist()]
+        except Exception as e:
+            logger.warning(f"[Island] get_history(VNINDEX): {e}")
+
+    indices = market_cache.get("indices") or {}
+    hist = list(_vnindex_hist["data"])
+    vni = indices.get("VNINDEX", {}).get("value")
+    if vni and hist:
+        hist[-1] = round(float(vni), 2)
+
+    alpha_list = list(market_cache.get("alpha") or [])
+    alpha_list.sort(key=lambda d: (0 if d.get("symbol") in _VN30_PRIORITY else 1, -(d.get("volume") or 0)))
+
+    board = []
+    for s in alpha_list[:100]:
+        board.append({
+            "s": s.get("symbol"),
+            "p": float(s.get("price") or 0),
+            "c": float(s.get("change") or 0),
+            "pc": round(float(s.get("pct_change") or 0), 2),
+            "v": int(s.get("volume") or 0),
+            "sc": int(s.get("signal_score") or 0),
+        })
+
+    return convert_numpy({
+        "indices": indices,
+        "board": board,
+        "hist": hist,
+        "trading": False,
+    })
+
+register_island(app, island_vn_provider)
+
 async def periodic_update():
     while True:
         try:
@@ -660,16 +719,19 @@ async def periodic_update():
         await asyncio.sleep(600)
 
 # --- Endpoints ---
+_stock_analysis_cache = {}
+_backtest_cache = {}
 
 @app.get("/api/health")
 async def health_check():
     db_status = "connected"
-    try:
-        from database import get_session, MarketCache
-        with get_session() as s:
-            s.query(MarketCache).first()
-    except Exception as e:
-        db_status = f"error: {str(e)}"
+    if not market_cache.get("last_updated"):
+        try:
+            from database import get_session, MarketCache
+            with get_session() as s:
+                s.query(MarketCache).first()
+        except Exception as e:
+            db_status = f"error: {str(e)}"
 
     return {
         "status": "healthy",
@@ -745,8 +807,25 @@ async def get_partner_brokers():
         ]
     }
 
+@app.get("/api/market/hud")
+async def get_market_hud():
+    """Endpoint siêu nhẹ (~350 bytes) chuyên dụng cho thanh GlobalHUD ở mọi trang."""
+    return {
+        "indices": market_cache.get("indices", {}),
+        "market_stats": market_cache.get("market_stats"),
+        "last_updated": market_cache.get("last_updated"),
+    }
+
 @app.get("/api/market/overview")
-async def get_market_overview(): return market_cache
+async def get_market_overview():
+    """Chỉ trả các trường cần cho trang Market Overview, loại bỏ alpha/scan nặng để giảm 85% băng thông."""
+    return {
+        "indices": market_cache.get("indices", {}),
+        "top10": market_cache.get("top10", {"gainers": [], "losers": [], "volume": []}),
+        "signals": market_cache.get("signals", {"bullish": [], "bearish": []}),
+        "market_stats": market_cache.get("market_stats"),
+        "last_updated": market_cache.get("last_updated"),
+    }
 
 @app.get("/api/market/scan")
 async def get_market_scan(): return market_cache.get("scan", {})
@@ -756,6 +835,7 @@ async def get_market_alpha(): return market_cache.get("alpha", [])
 
 @app.get("/api/market/update")
 async def trigger_market_update():
+    _stock_analysis_cache.clear()
     asyncio.create_task(update_market_data(force=True))
     return {"message": "Đã kích hoạt cập nhật"}
 
@@ -768,6 +848,10 @@ async def get_derivatives_signal():
 @app.get("/api/stock/{symbol}", response_model=StockAnalysisResponse)
 async def analyze_stock(symbol: str = Path(..., pattern="^[A-Za-z0-9]{1,10}$", description="Stock ticker symbol (1-10 alphanumeric chars)")):
     symbol = symbol.upper()
+    now_ts = time.time()
+    cached_entry = _stock_analysis_cache.get(symbol)
+    if cached_entry and now_ts - cached_entry[0] < 300:
+        return cached_entry[1]
     try:
         raw = get_intraday_data(symbol)
         if raw is None or raw.empty: raise HTTPException(404, "Không tìm thấy dữ liệu")
@@ -781,13 +865,15 @@ async def analyze_stock(symbol: str = Path(..., pattern="^[A-Za-z0-9]{1,10}$", d
         hist_df['MA5'] = hist_df['close'].rolling(5).mean()
         hist_df['MA20'] = hist_df['close'].rolling(20).mean()
 
-        return {
+        resp = {
             "symbol": symbol, "current_price": float(df['price'].iloc[-1]),
             "summary": convert_numpy(calculate_summary(df, resampled)),
             "trend_metrics": convert_numpy(calculate_trend_metrics(hist)),
             "intraday_data": convert_numpy(resampled.reset_index().to_dict('records')),
             "historical_data": convert_numpy(hist_df.to_dict('records'))
         }
+        _stock_analysis_cache[symbol] = (now_ts, resp)
+        return resp
     except Exception as e:
         logger.error(f"Error analyzing stock {symbol}: {e}", exc_info=True)
         raise HTTPException(500, str(e))
@@ -805,8 +891,12 @@ async def execute_trade(trade: TradeRequest):
 
 @app.post("/api/backtest")
 async def api_run_backtest(req: BacktestRequest):
+    cache_k = (req.symbol.upper(), req.start_date, req.end_date, float(req.initial_capital or 100000000))
+    if cache_k in _backtest_cache:
+        return _backtest_cache[cache_k]
     res = run_backtest(req.symbol, req.start_date, req.end_date, req.initial_capital)
     if "error" in res: raise HTTPException(400, res["error"])
+    _backtest_cache[cache_k] = res
     return res
 
 if __name__ == "__main__":
