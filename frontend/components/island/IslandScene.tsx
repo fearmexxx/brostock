@@ -133,16 +133,20 @@ export default function IslandScene({
     const { ocean } = buildIslandEnvironment(scene, screenSet)
 
     // 3. Hệ thống InstancedMesh cho 350+ Nhân vật Low-Poly
+    // Tắt frustumCulled vì InstancedMesh mặc định chỉ tính bounding sphere tại gốc (0,0,0),
+    // khiến nhân vật bị ẩn khi quay camera sang góc không nhìn thấy điểm (0,0,0).
     const bodyGeo = new THREE.CapsuleGeometry(0.42, 0.75, 4, 8)
     const bodyMat = new THREE.MeshLambertMaterial({ color: 0xffffff })
     const bodyInst = new THREE.InstancedMesh(bodyGeo, bodyMat, MAX_INST)
     bodyInst.instanceMatrix.setUsage(THREE.DynamicDrawUsage)
+    bodyInst.frustumCulled = false
     scene.add(bodyInst)
 
     const headGeo = new THREE.SphereGeometry(0.38, 8, 8)
     const headMat = new THREE.MeshLambertMaterial({ color: 0xfde68a })
     const headInst = new THREE.InstancedMesh(headGeo, headMat, MAX_INST)
     headInst.instanceMatrix.setUsage(THREE.DynamicDrawUsage)
+    headInst.frustumCulled = false
     scene.add(headInst)
 
     // Mặt nạ thở Oxy 3D (chỉ hiện trên nhân vật đang trong Trạm Oxy)
@@ -151,6 +155,7 @@ export default function IslandScene({
     const maskMat = new THREE.MeshBasicMaterial({ color: 0x22d3ee })
     const maskInst = new THREE.InstancedMesh(maskGeo, maskMat, MAX_INST)
     maskInst.instanceMatrix.setUsage(THREE.DynamicDrawUsage)
+    maskInst.frustumCulled = false
     scene.add(maskInst)
 
     // Vương miện / Vây Cá Mập VIP (hiện khi có Gift TikTok hoặc chọn nón)
@@ -158,6 +163,7 @@ export default function IslandScene({
     const crownMat = new THREE.MeshBasicMaterial({ color: 0xfacc15 })
     const crownInst = new THREE.InstancedMesh(crownGeo, crownMat, MAX_INST)
     crownInst.instanceMatrix.setUsage(THREE.DynamicDrawUsage)
+    crownInst.frustumCulled = false
     scene.add(crownInst)
 
     // Hạt sương khói Oxy bay lên tại Trạm Cấp Cứu Oxy
@@ -169,6 +175,7 @@ export default function IslandScene({
       opacity: 0.55,
     })
     const mistInst = new THREE.InstancedMesh(mistGeo, mistMat, mistCount)
+    mistInst.frustumCulled = false
     scene.add(mistInst)
 
     // 4. Điều khiển nhân vật của người chơi (WASD / Phím mũi tên / Phím E)

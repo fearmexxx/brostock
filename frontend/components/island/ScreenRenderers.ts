@@ -146,6 +146,24 @@ function drawSparkline(
   ctx.restore()
 }
 
+// Kiểm tra khung giờ giao dịch chứng khoán Việt Nam (HOSE/HNX/UPCOM - Múi giờ UTC+7)
+// Sáng: 09:00 - 11:30 | Chiều: 13:00 - 15:00 (Thứ 2 đến Thứ 6)
+function getVnMarketStatus(): { isOpen: boolean; label: string; color: string } {
+  const vnTime = new Date(Date.now() + 7 * 3600 * 1000)
+  const day = vnTime.getUTCDay() // 0: CN, 1..5: T2..T6, 6: T7
+  const mins = vnTime.getUTCHours() * 60 + vnTime.getUTCMinutes()
+
+  if (day >= 1 && day <= 5) {
+    if ((mins >= 540 && mins < 690) || (mins >= 780 && mins < 900)) {
+      return { isOpen: true, label: "🟢 ĐANG GIAO DỊCH", color: "#22c55e" }
+    }
+    if (mins >= 690 && mins < 780) {
+      return { isOpen: false, label: "🟡 NGHỈ TRƯA (11:30-13:00)", color: "#fbbf24" }
+    }
+  }
+  return { isOpen: false, label: "🔴 HẾT GIỜ GD (ĐÓNG CỬA)", color: "#f87171" }
+}
+
 export class ScreenSet {
   mainCanvas: HTMLCanvasElement
   mainTex: THREE.CanvasTexture
@@ -284,44 +302,51 @@ export class ScreenSet {
       "wss://data-stream.binance.vision/stream?streams=btcusdt@miniTicker/ethusdt@miniTicker/solusdt@miniTicker/bnbusdt@miniTicker/paxgusdt@miniTicker"
     )
 
-    // 3. Nhịp khớp lệnh trực tiếp mỗi 1.2 giây trên cả 4 màn hình LED (nháy xanh/đỏ chuẩn bảng điện tử VPS SmartOne)
+    // 3. Nhịp khớp lệnh trực tiếp mỗi 1.2 giây trên các màn hình LED
+    // LƯU Ý: Bảng điện VN100 & VN-Index CHỈ nhảy giá trong giờ giao dịch Việt Nam (09:00-11:30 & 13:00-15:00 T2-T6).
+    // Hết giờ giao dịch ở VN thì bảng điện VN100 ngưng nhảy hoàn toàn, giữ nguyên giá đóng cửa!
     this.liveTickTimer = setInterval(() => {
       if (this.disposed) return
       const now = Date.now()
-      const board = this.data.vn?.board
-      if (board && board.length > 0) {
-        // Mỗi nhịp khớp ngẫu nhiên 3–4 mã cổ phiếu trên bảng VN100
-        for (let k = 0; k < 4; k++) {
-          const idx = Math.floor(Math.random() * Math.min(board.length, 24))
-          const row = board[idx]
-          if (!row) continue
-          const step = (Math.random() > 0.48 ? 1 : -1) * 50
-          const refPrice = row.p - row.c
-          const nextP = Math.max(1000, row.p + step)
-          const nextC = nextP - refPrice
-          const nextPc = refPrice > 0 ? Number(((nextC / refPrice) * 100).toFixed(2)) : row.pc
-          if (Math.abs(nextPc) <= 6.95) {
-            this.flashMap.set(row.s, { up: step > 0, until: now + 950 })
-            row.p = nextP
-            row.c = nextC
-            row.pc = nextPc
-            row.v = (row.v || 0) + Math.floor(Math.random() * 18 + 1) * 100
+      const vnStatus = getVnMarketStatus()
+
+      if (vnStatus.isOpen) {
+        const board = this.data.vn?.board
+        if (board && board.length > 0) {
+          // Mỗi nhịp khớp ngẫu nhiên 3–4 mã cổ phiếu trên bảng VN100 khi đang trong phiên
+          for (let k = 0; k < 4; k++) {
+            const idx = Math.floor(Math.random() * Math.min(board.length, 24))
+            const row = board[idx]
+            if (!row) continue
+            const step = (Math.random() > 0.48 ? 1 : -1) * 50
+            const refPrice = row.p - row.c
+            const nextP = Math.max(1000, row.p + step)
+            const nextC = nextP - refPrice
+            const nextPc = refPrice > 0 ? Number(((nextC / refPrice) * 100).toFixed(2)) : row.pc
+            if (Math.abs(nextPc) <= 6.95) {
+              this.flashMap.set(row.s, { up: step > 0, until: now + 950 })
+              row.p = nextP
+              row.c = nextC
+              row.pc = nextPc
+              row.v = (row.v || 0) + Math.floor(Math.random() * 18 + 1) * 100
+            }
+          }
+        }
+        const indices = this.data.vn?.indices
+        if (indices?.VNINDEX) {
+          const dVni = Number(((Math.random() - 0.485) * 0.35).toFixed(2))
+          const vni = indices.VNINDEX
+          const ref = vni.value - vni.change
+          vni.value = Number((vni.value + dVni).toFixed(2))
+          vni.change = Number((vni.value - ref).toFixed(2))
+          vni.pct_change = ref > 0 ? Number(((vni.change / ref) * 100).toFixed(2)) : vni.pct_change
+          if (this.data.vn?.hist && this.data.vn.hist.length > 0) {
+            this.data.vn.hist[this.data.vn.hist.length - 1] = vni.value
           }
         }
       }
-      const indices = this.data.vn?.indices
-      if (indices?.VNINDEX) {
-        const dVni = Number(((Math.random() - 0.485) * 0.35).toFixed(2))
-        const vni = indices.VNINDEX
-        const ref = vni.value - vni.change
-        vni.value = Number((vni.value + dVni).toFixed(2))
-        vni.change = Number((vni.value - ref).toFixed(2))
-        vni.pct_change = ref > 0 ? Number(((vni.change / ref) * 100).toFixed(2)) : vni.pct_change
-        if (this.data.vn?.hist && this.data.vn.hist.length > 0) {
-          this.data.vn.hist[this.data.vn.hist.length - 1] = vni.value
-        }
-      }
-      // Nhịp biến động nhẹ cho Vàng/Dầu & US Stocks giữa các kỳ lấy Yahoo Finance
+
+      // Nhịp biến động nhẹ cho Vàng/Dầu & US Stocks (thị trường quốc tế 24/5) giữa các kỳ lấy Yahoo Finance
       for (const group of [this.data.macro, this.data.us]) {
         if (!group) continue
         const pick = group[Math.floor(Math.random() * group.length)]
@@ -406,13 +431,16 @@ export class ScreenSet {
     ctx.fillRect(0, 0, c.width, 58)
 
     ctx.fillStyle = "#fbbf24"
-    ctx.font = "900 24px monospace"
-    ctx.fillText("⚡ BẢNG GIÁ VN100 & VN-INDEX REALTIME (CHUẨN VPS SMARTONE)", 20, 37)
+    ctx.font = "900 23px monospace"
+    ctx.fillText("⚡ BẢNG GIÁ VN100 & VN-INDEX (CHUẨN VPS SMARTONE)", 20, 37)
 
+    const vnStatus = getVnMarketStatus()
     const nowStr = new Date().toLocaleTimeString("vi-VN")
-    ctx.fillStyle = "#38bdf8"
-    ctx.font = "bold 20px monospace"
-    ctx.fillText(`LIVE ${nowStr} • FENWEALTH TERMINAL`, c.width - 410, 37)
+    ctx.fillStyle = vnStatus.color
+    ctx.font = "bold 19px monospace"
+    ctx.textAlign = "right"
+    ctx.fillText(`${vnStatus.label} • ${nowStr}`, c.width - 20, 37)
+    ctx.textAlign = "left"
 
     // 3 Hộp Chỉ số VN-INDEX, VN30, HNX-INDEX + Biểu đồ VN-Index (từ dữ liệu tĩnh BroStock Core)
     const indices =

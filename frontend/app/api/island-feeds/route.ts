@@ -102,7 +102,16 @@ async function fetchVNLive() {
     })
   )
 
-  return { indices, board, hist, trading: true }
+  // Kiểm tra giờ giao dịch chứng khoán Việt Nam (UTC+7: Thứ 2 - Thứ 6, 09:00-11:30 & 13:00-15:00)
+  const vnTime = new Date(Date.now() + 7 * 3600 * 1000)
+  const day = vnTime.getUTCDay()
+  const mins = vnTime.getUTCHours() * 60 + vnTime.getUTCMinutes()
+  const isTrading =
+    day >= 1 &&
+    day <= 5 &&
+    ((mins >= 540 && mins < 690) || (mins >= 780 && mins < 900))
+
+  return { indices, board, hist, trading: isTrading }
 }
 
 async function fetchCryptoLive() {

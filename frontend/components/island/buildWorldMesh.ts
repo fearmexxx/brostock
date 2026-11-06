@@ -154,6 +154,7 @@ export function buildIslandEnvironment(scene: THREE.Scene, screens: ScreenSet) {
   const seatGeo = new THREE.BoxGeometry(0.95, 0.55, 0.85)
   const seatMat = new THREE.MeshLambertMaterial({ color: 0xdc2626 })
   const seatInst = new THREE.InstancedMesh(seatGeo, seatMat, totalSeats)
+  seatInst.frustumCulled = false
   const dummy = new THREE.Object3D()
   for (let i = 0; i < totalSeats; i++) {
     const sp = seatPos(i)
@@ -235,11 +236,13 @@ export function buildIslandEnvironment(scene: THREE.Scene, screens: ScreenSet) {
     new THREE.MeshLambertMaterial({ color: 0x854d0e }),
     treeCount
   )
+  trunkInst.frustumCulled = false
   const leafInst = new THREE.InstancedMesh(
     new THREE.ConeGeometry(2.6, 3.2, 6),
     new THREE.MeshLambertMaterial({ color: 0x15803d }),
     treeCount
   )
+  leafInst.frustumCulled = false
   for (let i = 0; i < treeCount; i++) {
     const ang = (i / treeCount) * Math.PI * 2
     const rad = 74 + (i % 3) * 8
