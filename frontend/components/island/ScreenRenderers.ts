@@ -75,25 +75,25 @@ export const DEFAULT_VN_BOARD: VNStockRow[] = [
   { s: "OCB", p: 10950, c: 250, pc: 2.34, v: 2090200, sc: 71 },
 ]
 
-const DEFAULT_CRYPTO: TickerItem[] = [
-  { s: "BTC", p: 94250, c: 2.84, h: [91800, 92200, 92900, 92600, 93400, 93900, 94250] },
-  { s: "ETH", p: 3180, c: 1.95, h: [3110, 3125, 3140, 3130, 3160, 3175, 3180] },
-  { s: "SOL", p: 212.4, c: 5.42, h: [201, 204, 206, 205, 208, 210, 212.4] },
-  { s: "BNB", p: 654.2, c: -0.65, h: [659, 658, 656, 657, 655, 653, 654.2] },
+export const DEFAULT_CRYPTO: TickerItem[] = [
+  { s: "BTC", p: 76258.9, c: -5.57, h: [80600, 79400, 78500, 77900, 77100, 76600, 76258.9] },
+  { s: "ETH", p: 2244.6, c: -7.67, h: [2430, 2390, 2350, 2310, 2280, 2260, 2244.6] },
+  { s: "SOL", p: 90.23, c: -6.29, h: [96.4, 95.1, 93.8, 92.5, 91.4, 90.8, 90.23] },
+  { s: "BNB", p: 695.45, c: -3.44, h: [720, 715, 709, 704, 700, 697, 695.45] },
 ]
 
-const DEFAULT_MACRO: TickerItem[] = [
-  { s: "VÀNG XAU", p: 2748.5, c: 0.82, h: [2720, 2728, 2735, 2731, 2740, 2745, 2748.5] },
-  { s: "DẦU WTI", p: 71.45, c: -1.34, h: [72.6, 72.3, 72.0, 71.8, 71.9, 71.6, 71.45] },
-  { s: "DXY INDEX", p: 104.12, c: 0.21, h: [103.8, 103.9, 104.0, 103.95, 104.05, 104.1, 104.12] },
+export const DEFAULT_MACRO: TickerItem[] = [
+  { s: "VÀNG XAU", p: 4079.3, c: 2.76, h: [3970, 3995, 4015, 4032, 4050, 4066, 4079.3] },
+  { s: "DẦU WTI", p: 91.4, c: -5.25, h: [96.4, 95.2, 94.1, 93.3, 92.5, 91.8, 91.4] },
+  { s: "DXY INDEX", p: 101.67, c: -0.08, h: [101.85, 101.8, 101.76, 101.72, 101.7, 101.69, 101.67] },
 ]
 
-const DEFAULT_US: TickerItem[] = [
-  { s: "S&P 500", p: 5985.2, c: 0.94, h: [5920, 5935, 5950, 5945, 5968, 5975, 5985.2] },
-  { s: "NASDAQ 100", p: 21140.8, c: 1.42, h: [20820, 20900, 20950, 21010, 21080, 21140.8] },
-  { s: "DOW JONES", p: 43920.0, c: 0.56, h: [43680, 43720, 43790, 43810, 43880, 43920] },
-  { s: "NVDA", p: 145.8, c: 3.65, h: [140.2, 141.5, 142.8, 143.1, 144.6, 145.8] },
-  { s: "TSLA", p: 328.4, c: 4.18, h: [314.0, 318.5, 321.0, 324.2, 326.0, 328.4] },
+export const DEFAULT_US: TickerItem[] = [
+  { s: "S&P 500", p: 7353.7, c: -4.75, h: [7720, 7640, 7580, 7510, 7440, 7390, 7353.7] },
+  { s: "NASDAQ 100", p: 26629.8, c: -9.43, h: [29400, 28800, 28200, 27600, 27100, 26850, 26629.8] },
+  { s: "DOW JONES", p: 51523.1, c: -1.57, h: [52340, 52180, 51990, 51840, 51710, 51600, 51523.1] },
+  { s: "NVDA", p: 181.6, c: -15.01, h: [213.6, 206.4, 199.2, 193.5, 188.1, 184.2, 181.6] },
+  { s: "TSLA", p: 343.69, c: -14.78, h: [403.3, 391.0, 378.5, 366.2, 355.8, 348.4, 343.69] },
 ]
 
 function fmtVnd(val: number): string {
@@ -156,9 +156,27 @@ export class ScreenSet {
   usCanvas: HTMLCanvasElement
   usTex: THREE.CanvasTexture
 
-  data: IslandScreensData = {}
+  data: IslandScreensData = {
+    vn: {
+      indices: {
+        VNINDEX: { ...DEFAULT_VN_INDICES.VNINDEX },
+        VN30: { ...DEFAULT_VN_INDICES.VN30 },
+        HNXINDEX: { ...DEFAULT_VN_INDICES.HNXINDEX },
+      },
+      board: DEFAULT_VN_BOARD.map((r) => ({ ...r })),
+      hist: [...DEFAULT_VN_HIST],
+      trading: true,
+    },
+    crypto: DEFAULT_CRYPTO.map((c) => ({ ...c, h: [...(c.h || [])] })),
+    macro: DEFAULT_MACRO.map((m) => ({ ...m, h: [...(m.h || [])] })),
+    us: DEFAULT_US.map((u) => ({ ...u, h: [...(u.h || [])] })),
+  }
   tickOffset = 0
+  flashMap: Map<string, { up: boolean; until: number }> = new Map()
   private binanceWs: WebSocket | null = null
+  private pollTimer: ReturnType<typeof setInterval> | null = null
+  private liveTickTimer: ReturnType<typeof setInterval> | null = null
+  private disposed = false
 
   constructor() {
     const setupTex = (c: HTMLCanvasElement) => {
@@ -191,9 +209,146 @@ export class ScreenSet {
     this.usTex = setupTex(this.usCanvas)
 
     this.renderAll()
+    this.startLiveFeeds()
+  }
+
+  startLiveFeeds() {
+    // 1. Gọi ngay Serverless API (/api/island-feeds) trên Vercel để cập nhật 4 bảng điện thực tế
+    const fetchFeeds = async () => {
+      if (this.disposed) return
+      try {
+        const res = await fetch("/api/island-feeds", { cache: "no-store" })
+        if (res.ok) {
+          const json = await res.json()
+          if (json && !this.disposed) {
+            this.updateData(json)
+          }
+        }
+      } catch {}
+    }
+    fetchFeeds()
+    this.pollTimer = setInterval(fetchFeeds, 15000)
+
+    // 2. Kết nối trực tiếp Binance WebSocket (ưu tiên data-stream.binance.vision không bị chặn vùng trên Vercel)
+    const connectWs = (url: string, isFallback = false) => {
+      if (this.disposed) return
+      try {
+        const ws = new WebSocket(url)
+        this.binanceWs = ws
+        ws.onmessage = (ev) => {
+          try {
+            const msg = JSON.parse(ev.data)
+            const d = msg?.data
+            if (!d || !d.s) return
+            const close = parseFloat(d.c)
+            const open = parseFloat(d.o)
+            const pct = open > 0 ? ((close - open) / open) * 100 : 0
+            if (d.s === "PAXGUSDT") {
+              const gold = this.data.macro?.find((m) => m.s.includes("VÀNG"))
+              if (gold && close > 0) {
+                this.flashMap.set("VÀNG XAU", { up: close >= gold.p, until: Date.now() + 900 })
+                gold.p = Number(close.toFixed(2))
+                gold.c = Number(pct.toFixed(2))
+                if (!gold.h) gold.h = []
+                gold.h.push(gold.p)
+                if (gold.h.length > 50) gold.h.shift()
+              }
+              return
+            }
+            const sym = d.s.replace("USDT", "")
+            const item = this.data.crypto?.find((c) => c.s === sym)
+            if (item && close > 0) {
+              this.flashMap.set(sym, { up: close >= item.p, until: Date.now() + 900 })
+              item.p = close
+              item.c = Number(pct.toFixed(2))
+              if (!item.h) item.h = []
+              item.h.push(close)
+              if (item.h.length > 50) item.h.shift()
+            }
+          } catch {}
+        }
+        ws.onerror = () => {
+          if (!isFallback && !this.disposed) {
+            try {
+              ws.close()
+            } catch {}
+            connectWs(
+              "wss://stream.binance.com:9443/stream?streams=btcusdt@miniTicker/ethusdt@miniTicker/solusdt@miniTicker/bnbusdt@miniTicker/paxgusdt@miniTicker",
+              true
+            )
+          }
+        }
+      } catch {}
+    }
+    connectWs(
+      "wss://data-stream.binance.vision/stream?streams=btcusdt@miniTicker/ethusdt@miniTicker/solusdt@miniTicker/bnbusdt@miniTicker/paxgusdt@miniTicker"
+    )
+
+    // 3. Nhịp khớp lệnh trực tiếp mỗi 1.2 giây trên cả 4 màn hình LED (nháy xanh/đỏ chuẩn bảng điện tử VPS SmartOne)
+    this.liveTickTimer = setInterval(() => {
+      if (this.disposed) return
+      const now = Date.now()
+      const board = this.data.vn?.board
+      if (board && board.length > 0) {
+        // Mỗi nhịp khớp ngẫu nhiên 3–4 mã cổ phiếu trên bảng VN100
+        for (let k = 0; k < 4; k++) {
+          const idx = Math.floor(Math.random() * Math.min(board.length, 24))
+          const row = board[idx]
+          if (!row) continue
+          const step = (Math.random() > 0.48 ? 1 : -1) * 50
+          const refPrice = row.p - row.c
+          const nextP = Math.max(1000, row.p + step)
+          const nextC = nextP - refPrice
+          const nextPc = refPrice > 0 ? Number(((nextC / refPrice) * 100).toFixed(2)) : row.pc
+          if (Math.abs(nextPc) <= 6.95) {
+            this.flashMap.set(row.s, { up: step > 0, until: now + 950 })
+            row.p = nextP
+            row.c = nextC
+            row.pc = nextPc
+            row.v = (row.v || 0) + Math.floor(Math.random() * 18 + 1) * 100
+          }
+        }
+      }
+      const indices = this.data.vn?.indices
+      if (indices?.VNINDEX) {
+        const dVni = Number(((Math.random() - 0.485) * 0.35).toFixed(2))
+        const vni = indices.VNINDEX
+        const ref = vni.value - vni.change
+        vni.value = Number((vni.value + dVni).toFixed(2))
+        vni.change = Number((vni.value - ref).toFixed(2))
+        vni.pct_change = ref > 0 ? Number(((vni.change / ref) * 100).toFixed(2)) : vni.pct_change
+        if (this.data.vn?.hist && this.data.vn.hist.length > 0) {
+          this.data.vn.hist[this.data.vn.hist.length - 1] = vni.value
+        }
+      }
+      // Nhịp biến động nhẹ cho Vàng/Dầu & US Stocks giữa các kỳ lấy Yahoo Finance
+      for (const group of [this.data.macro, this.data.us]) {
+        if (!group) continue
+        const pick = group[Math.floor(Math.random() * group.length)]
+        if (pick) {
+          const pctDelta = (Math.random() - 0.49) * 0.0008
+          const nextP = Number((pick.p * (1 + pctDelta)).toFixed(2))
+          this.flashMap.set(pick.s, { up: nextP >= pick.p, until: now + 900 })
+          pick.p = nextP
+          pick.c = Number((pick.c + pctDelta * 100).toFixed(2))
+          if (pick.h && pick.h.length > 0) {
+            pick.h[pick.h.length - 1] = nextP
+          }
+        }
+      }
+      this.renderAll()
+    }, 1200)
   }
 
   dispose() {
+    this.disposed = true
+    if (this.pollTimer) clearInterval(this.pollTimer)
+    if (this.liveTickTimer) clearInterval(this.liveTickTimer)
+    if (this.binanceWs) {
+      try {
+        this.binanceWs.close()
+      } catch {}
+    }
     this.mainTex.dispose()
     this.cryptoTex.dispose()
     this.macroTex.dispose()
@@ -201,7 +356,27 @@ export class ScreenSet {
   }
 
   updateData(scr: IslandScreensData) {
-    this.data = { ...this.data, ...scr }
+    if (scr.vn) {
+      this.data.vn = {
+        indices:
+          scr.vn.indices && Object.keys(scr.vn.indices).length > 0
+            ? scr.vn.indices
+            : this.data.vn?.indices || DEFAULT_VN_INDICES,
+        board:
+          scr.vn.board && scr.vn.board.length > 0
+            ? scr.vn.board
+            : this.data.vn?.board || DEFAULT_VN_BOARD,
+        hist:
+          scr.vn.hist && scr.vn.hist.length > 3
+            ? scr.vn.hist
+            : this.data.vn?.hist || DEFAULT_VN_HIST,
+        trading: scr.vn.trading ?? true,
+      }
+    }
+    if (scr.crypto && scr.crypto.length > 0) this.data.crypto = scr.crypto
+    if (scr.macro && scr.macro.length > 0) this.data.macro = scr.macro
+    if (scr.us && scr.us.length > 0) this.data.us = scr.us
+    if (scr.ts) this.data.ts = scr.ts
     this.renderAll()
   }
 
@@ -330,7 +505,15 @@ export class ScreenSet {
         if (!item) continue
         const ry = startY + 36 + r * rowH
 
-        ctx.fillStyle = r % 2 === 0 ? "#0b1324" : "#0f172a"
+        const flash = this.flashMap.get(item.s)
+        const isFlashing = flash && flash.until > Date.now()
+        ctx.fillStyle = isFlashing
+          ? flash.up
+            ? "#14532d"
+            : "#7f1d1d"
+          : r % 2 === 0
+          ? "#0b1324"
+          : "#0f172a"
         ctx.fillRect(ox, ry, colW, rowH - 2)
 
         const color = vpsColor(item.pc)
@@ -394,7 +577,15 @@ export class ScreenSet {
     const rowH = Math.floor((h - 56) / Math.max(items.length, 3))
     items.forEach((it, idx) => {
       const y = 52 + idx * rowH
-      ctx.fillStyle = idx % 2 === 0 ? "#0f172a" : "#131c31"
+      const flash = this.flashMap.get(it.s)
+      const isFlashing = flash && flash.until > Date.now()
+      ctx.fillStyle = isFlashing
+        ? flash.up
+          ? "#14532d"
+          : "#7f1d1d"
+        : idx % 2 === 0
+        ? "#0f172a"
+        : "#131c31"
       ctx.fillRect(12, y, w - 24, rowH - 6)
 
       const up = it.c >= 0

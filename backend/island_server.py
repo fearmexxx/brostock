@@ -455,36 +455,92 @@ class IslandWorld:
                 self.sockets.pop(pid, None)
                 self.remove_player(pid)
 
-    # ------------------------------------------------- Dữ liệu màn hình LED (Tĩnh từ BroStock Core)
+    # ------------------------------------------------- Dữ liệu màn hình LED
     STATIC_CRYPTO = [
-        {"s": "BTC", "p": 94250.0, "c": 2.84, "h": [91800, 92200, 92900, 92600, 93400, 93900, 94250]},
-        {"s": "ETH", "p": 3180.0, "c": 1.95, "h": [3110, 3125, 3140, 3130, 3160, 3175, 3180]},
-        {"s": "SOL", "p": 212.4, "c": 5.42, "h": [201, 204, 206, 205, 208, 210, 212.4]},
-        {"s": "BNB", "p": 654.2, "c": -0.65, "h": [659, 658, 656, 657, 655, 653, 654.2]},
+        {"s": "BTC", "p": 76258.9, "c": -5.57, "h": [80600, 79400, 78500, 77900, 77100, 76600, 76258.9]},
+        {"s": "ETH", "p": 2244.6, "c": -7.67, "h": [2430, 2390, 2350, 2310, 2280, 2260, 2244.6]},
+        {"s": "SOL", "p": 90.23, "c": -6.29, "h": [96.4, 95.1, 93.8, 92.5, 91.4, 90.8, 90.23]},
+        {"s": "BNB", "p": 695.45, "c": -3.44, "h": [720, 715, 709, 704, 700, 697, 695.45]},
     ]
     STATIC_MACRO = [
-        {"s": "VÀNG XAU", "p": 2748.5, "c": 0.82, "h": [2720, 2728, 2735, 2731, 2740, 2745, 2748.5]},
-        {"s": "DẦU WTI", "p": 71.45, "c": -1.34, "h": [72.6, 72.3, 72.0, 71.8, 71.9, 71.6, 71.45]},
-        {"s": "DXY INDEX", "p": 104.12, "c": 0.21, "h": [103.8, 103.9, 104.0, 103.95, 104.05, 104.1, 104.12]},
+        {"s": "VÀNG XAU", "p": 4079.3, "c": 2.76, "h": [3970, 3995, 4015, 4032, 4050, 4066, 4079.3]},
+        {"s": "DẦU WTI", "p": 91.4, "c": -5.25, "h": [96.4, 95.2, 94.1, 93.3, 92.5, 91.8, 91.4]},
+        {"s": "DXY INDEX", "p": 101.67, "c": -0.08, "h": [101.85, 101.8, 101.76, 101.72, 101.7, 101.69, 101.67]},
     ]
     STATIC_US = [
-        {"s": "S&P 500", "p": 5985.2, "c": 0.94, "h": [5920, 5935, 5950, 5945, 5968, 5975, 5985.2]},
-        {"s": "NASDAQ 100", "p": 21140.8, "c": 1.42, "h": [20820, 20900, 20950, 21010, 21080, 21140.8]},
-        {"s": "DOW JONES", "p": 43920.0, "c": 0.56, "h": [43680, 43720, 43790, 43810, 43880, 43920]},
-        {"s": "NVDA", "p": 145.8, "c": 3.65, "h": [140.2, 141.5, 142.8, 143.1, 144.6, 145.8]},
-        {"s": "TSLA", "p": 328.4, "c": 4.18, "h": [314.0, 318.5, 321.0, 324.2, 326.0, 328.4]},
+        {"s": "S&P 500", "p": 7353.7, "c": -4.75, "h": [7720, 7640, 7580, 7510, 7440, 7390, 7353.7]},
+        {"s": "NASDAQ 100", "p": 26629.8, "c": -9.43, "h": [29400, 28800, 28200, 27600, 27100, 26850, 26629.8]},
+        {"s": "DOW JONES", "p": 51523.1, "c": -1.57, "h": [52340, 52180, 51990, 51840, 51710, 51600, 51523.1]},
+        {"s": "NVDA", "p": 181.6, "c": -15.01, "h": [213.6, 206.4, 199.2, 193.5, 188.1, 184.2, 181.6]},
+        {"s": "TSLA", "p": 343.69, "c": -14.78, "h": [403.3, 391.0, 378.5, 366.2, 355.8, 348.4, 343.69]},
     ]
 
+    @staticmethod
+    def _http_json(url: str):
+        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 BroStockIsland"})
+        with urllib.request.urlopen(req, timeout=5) as r:
+            return json.loads(r.read().decode())
+
+    @staticmethod
+    def _down(series, n=48):
+        s = [float(v) for v in series if v is not None]
+        if len(s) <= n:
+            return [round(v, 4) for v in s]
+        step = len(s) / n
+        return [round(s[int(i * step)], 4) for i in range(n - 1)] + [round(s[-1], 4)]
+
+    def fetch_crypto(self):
+        out = []
+        for sym in ("BTC", "ETH", "SOL", "BNB"):
+            try:
+                k = self._http_json(f"https://data-api.binance.vision/api/v3/klines?symbol={sym}USDT&interval=15m&limit=64")
+                closes = [float(c[4]) for c in k]
+                out.append({"s": sym, "p": closes[-1], "c": round((closes[-1] / closes[0] - 1) * 100, 2),
+                            "h": self._down(closes)})
+            except Exception:
+                pass
+        return out or self.STATIC_CRYPTO
+
+    def fetch_yahoo(self, items, fallback):
+        out = []
+        for sym, label in items:
+            try:
+                d = self._http_json(f"https://query1.finance.yahoo.com/v8/finance/chart/{urllib.request.quote(sym)}?interval=15m&range=5d")
+                res = d["chart"]["result"][0]
+                closes = [c for c in res["indicators"]["quote"][0]["close"] if c is not None]
+                price = float(res["meta"].get("regularMarketPrice") or closes[-1])
+                prev = float(res["meta"].get("chartPreviousClose") or res["meta"].get("previousClose") or closes[0])
+                out.append({"s": label, "p": round(price, 2), "c": round((price / prev - 1) * 100, 2),
+                            "h": self._down(closes[-60:])})
+            except Exception:
+                pass
+        return out or fallback
+
     async def screens_loop(self):
-        """Nạp trực tiếp dữ liệu tĩnh đã có sẵn từ BroStock Core (SQLite / market_cache), chỉ phát qua WS khi có thay đổi."""
+        """Nạp dữ liệu VN100 từ BroStock Core + giá realtime Crypto / Vàng-Dầu / US Stocks."""
+        loop = asyncio.get_running_loop()
         last_sig = None
         while True:
             try:
+                vn_data = self.vn_provider() if self.vn_provider else {}
+                crypto_data = await loop.run_in_executor(None, self.fetch_crypto)
+                macro_data = await loop.run_in_executor(
+                    None,
+                    self.fetch_yahoo,
+                    [("GC=F", "VÀNG XAU"), ("CL=F", "DẦU WTI"), ("DX-Y.NYB", "DXY INDEX")],
+                    self.STATIC_MACRO,
+                )
+                us_data = await loop.run_in_executor(
+                    None,
+                    self.fetch_yahoo,
+                    [("^GSPC", "S&P 500"), ("^NDX", "NASDAQ 100"), ("^DJI", "DOW JONES"), ("NVDA", "NVDA"), ("TSLA", "TSLA")],
+                    self.STATIC_US,
+                )
                 scr = {
-                    "vn": self.vn_provider() if self.vn_provider else {},
-                    "crypto": self.STATIC_CRYPTO,
-                    "macro": self.STATIC_MACRO,
-                    "us": self.STATIC_US,
+                    "vn": vn_data,
+                    "crypto": crypto_data,
+                    "macro": macro_data,
+                    "us": us_data,
                 }
                 sig = json.dumps(scr, ensure_ascii=False, separators=(",", ":"), sort_keys=True)
                 scr["ts"] = int(time.time())
@@ -494,7 +550,7 @@ class IslandWorld:
                     await self.broadcast(json.dumps({"t": "scr", "d": scr}, ensure_ascii=False, separators=(",", ":")))
             except Exception as ex:
                 logger.warning(f"[Island screens] {ex}")
-            await asyncio.sleep(60)
+            await asyncio.sleep(20)
 
     def start(self):
         if not self._started:

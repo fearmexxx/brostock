@@ -15,7 +15,7 @@ import {
   Armchair,
   Eye,
 } from "lucide-react"
-import { COLORS, HATS, OXY_BOX, QUICK_CHATS, ST } from "@/components/island/world"
+import { COLORS, HATS, OXY_BOX, QUICK_CHATS, SEAT_COLS, SEAT_ROWS, ST, seatPos } from "@/components/island/world"
 import type { CameraMode, PlayerEntity } from "@/components/island/IslandScene"
 import type { IslandScreensData } from "@/components/island/ScreenRenderers"
 
@@ -189,9 +189,144 @@ export default function IslandPage() {
     }
 
     connect()
+
+    // Fallback Crowd & Bot Engine trên Vercel (khi chạy Serverless không có WebSocket daemon)
+    const botNames = [
+      "Hùng Đu Đỉnh", "Lan Bắt Đáy", "Tuấn Margin", "Mai Tích Sản", "Cá Mập Nhỏ",
+      "Chứng Sĩ F0", "Bảo VN30", "Ngọc Lướt Sóng", "Long HPG", "Vy Về Bờ",
+      "Khánh SSI", "Minh VCB", "Thảo FPT", "Đức TCB", "Hoàng MBB",
+    ]
+    const botComments = [
+      "oxy gấp ad ơi 🏥", "HPG giữ được không ad?", "ngồi xem bảng điện",
+      "tím lịm luôn 💜", "đu đỉnh rồi cứu", "VNINDEX lên 1800 không",
+      "lãi rồi nhảy thôi 🕺", "full margin toang rồi", "FPT tích sản ngon",
+    ]
+
+    const spawnClientBots = (count: number, forceMode?: "oxy" | "comment" | "like" | "gift") => {
+      const now = performance.now()
+      for (let i = 0; i < count; i++) {
+        if (playersRef.current.size >= 350 && !forceMode) break
+        const baseName = botNames[Math.floor(Math.random() * botNames.length)]
+        const id =
+          forceMode && playersRef.current.size > 10
+            ? Array.from(playersRef.current.keys()).filter((k) => k.startsWith("bot_"))[
+                Math.floor(Math.random() * Math.max(1, playersRef.current.size - 1))
+              ] || `bot_${Math.floor(Math.random() * 900 + 100)}`
+            : `bot_${playersRef.current.size + 1}_${Math.floor(Math.random() * 99)}`
+
+        let p = playersRef.current.get(id)
+        if (!p) {
+          const roll = Math.random()
+          let tx = (Math.random() - 0.5) * 44
+          let tz = 10 + Math.random() * 24
+          let s: number = ST.IDLE
+          let r = 0
+          if (roll < 0.45) {
+            const seatIdx = Math.floor(Math.random() * (SEAT_ROWS * SEAT_COLS))
+            const sp = seatPos(seatIdx)
+            tx = sp.x
+            tz = sp.z
+            s = ST.SIT
+            r = Math.PI
+          } else if (roll < 0.68) {
+            tx = OXY_BOX[0] + 1.5 + Math.random() * (OXY_BOX[1] - OXY_BOX[0] - 3)
+            tz = OXY_BOX[2] + 1.5 + Math.random() * (OXY_BOX[3] - OXY_BOX[2] - 3)
+            s = ST.OXY
+          } else if (roll < 0.85) {
+            tx = (Math.random() - 0.5) * 24
+            tz = -34 + Math.random() * 10
+            s = ST.DANCE
+          }
+          p = {
+            id,
+            n: `@${baseName.replace(/\s+/g, "")}${Math.floor(Math.random() * 90 + 10)}`,
+            src: "tiktok",
+            c: COLORS[Math.floor(Math.random() * COLORS.length)],
+            h: Math.floor(Math.random() * 4),
+            v: Math.random() > 0.8 ? 2 : 0,
+            x: tx,
+            z: tz,
+            tx,
+            tz,
+            r,
+            s,
+          }
+          playersRef.current.set(id, p)
+        }
+
+        if (forceMode === "oxy") {
+          p.tx = OXY_BOX[0] + 1.5 + Math.random() * (OXY_BOX[1] - OXY_BOX[0] - 3)
+          p.tz = OXY_BOX[2] + 1.5 + Math.random() * (OXY_BOX[3] - OXY_BOX[2] - 3)
+          p.s = ST.OXY
+          p.chat = "Cứu em thở Oxy gấp 🏥😭"
+          p.chatUntil = now + 5500
+          triggerBanner(`🏥 CẤP CỨU ĐU ĐỈNH: ${p.n} đang chạy vào Trạm Thở Oxy!`)
+        } else if (forceMode === "comment") {
+          p.chat = botComments[Math.floor(Math.random() * botComments.length)]
+          p.chatUntil = now + 5500
+        } else if (forceMode === "like") {
+          p.chat = `❤️ x${Math.floor(Math.random() * 15 + 1)}`
+          p.chatUntil = now + 3500
+          p.fxUntil = now + 2500
+        } else if (forceMode === "gift") {
+          p.v = 3
+          p.s = ST.DANCE
+          p.chat = `🎁 Tặng Cá Mập Vàng (+1000💎)`
+          p.chatUntil = now + 7000
+          p.fxUntil = now + 6000
+          triggerBanner(`🦈 VIP TIKTOK: ${p.n} vừa tặng Cá Mập Vàng (1000💎) tại Sân Vận Động!`)
+        }
+      }
+
+      const all = Array.from(playersRef.current.values())
+      const webCount = all.filter((x) => x.src === "web").length
+      updateStatsIfChanged({
+        n: all.length,
+        w: webCount,
+        tt: all.length - webCount,
+        max: 350,
+        live: { u: null, s: "live-sim" },
+      })
+    }
+
+    const fallbackTimer = setTimeout(() => {
+      if (playersRef.current.size === 0) {
+        spawnClientBots(46)
+        spawnClientBots(4, "comment")
+      }
+    }, 1200)
+
+    const botStepInterval = setInterval(() => {
+      if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) return
+      if (playersRef.current.size === 0) return
+      const now = performance.now()
+      const bots = Array.from(playersRef.current.values()).filter((p) => p.src === "tiktok")
+      for (let i = 0; i < Math.min(3, bots.length); i++) {
+        const b = bots[Math.floor(Math.random() * bots.length)]
+        if (!b) continue
+        if (Math.random() < 0.25) {
+          b.chat = botComments[Math.floor(Math.random() * botComments.length)]
+          b.chatUntil = now + 5000
+        }
+        if (b.s !== ST.SIT && Math.random() < 0.35) {
+          if (b.s === ST.OXY) {
+            b.tx = OXY_BOX[0] + 1.5 + Math.random() * (OXY_BOX[1] - OXY_BOX[0] - 3)
+            b.tz = OXY_BOX[2] + 1.5 + Math.random() * (OXY_BOX[3] - OXY_BOX[2] - 3)
+          } else {
+            b.tx = (Math.random() - 0.5) * 36
+            b.tz = -32 + Math.random() * 55
+          }
+        }
+      }
+    }, 2800)
+
+    ;(window as any).__spawnIslandBots = spawnClientBots
+
     return () => {
       disposed = true
       if (reconnectTimer) clearTimeout(reconnectTimer)
+      clearTimeout(fallbackTimer)
+      clearInterval(botStepInterval)
       if (ws) ws.close()
     }
   }, [API_URL, triggerBanner, updateStatsIfChanged])
@@ -222,6 +357,15 @@ export default function IslandPage() {
       })
       setMyId(localId)
       setJoined(true)
+      const all = Array.from(playersRef.current.values())
+      const webCount = all.filter((x) => x.src === "web").length
+      updateStatsIfChanged({
+        n: all.length,
+        w: webCount,
+        tt: all.length - webCount,
+        max: 350,
+        live: { u: null, s: "live-sim" },
+      })
     }
   }
 
@@ -293,15 +437,25 @@ export default function IslandPage() {
   }
 
   const simulateTikTok = async (kind: string, n = 1) => {
-    try {
-      const res = await fetch(`${API_URL}/api/island/simulate`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ kind, n }),
-      })
-      const st = await res.json()
-      if (st && typeof st.n === "number") setStats(st)
-    } catch {}
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      try {
+        const res = await fetch(`${API_URL}/api/island/simulate`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ kind, n }),
+        })
+        const st = await res.json()
+        if (st && typeof st.n === "number") {
+          setStats(st)
+          return
+        }
+      } catch {}
+    }
+    const fn = (window as any).__spawnIslandBots
+    if (typeof fn === "function") {
+      if (kind === "crowd") fn(n)
+      else fn(n, kind)
+    }
   }
 
   return (
