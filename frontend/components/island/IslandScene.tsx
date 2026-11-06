@@ -62,6 +62,12 @@ export default function IslandScene({
   const onSendMoveRef = useRef(onSendMove)
   const onLocalStatusRef = useRef(onLocalStatusChange)
   const screensDataRef = useRef<IslandScreensData>(screensData)
+  const joyRef = useRef({ forward: 0, strafe: 0 })
+  const joyKnobRef = useRef<HTMLDivElement>(null)
+  const actionRef = useRef<{ toggleSit: () => void; triggerDance: () => void }>({
+    toggleSit: () => {},
+    triggerDance: () => {},
+  })
 
   useEffect(() => {
     camModeRef.current = cameraMode
@@ -172,6 +178,43 @@ export default function IslandScene({
     let prevMouseX = 0
     let seatedSeatIdx = -1
 
+    const toggleSit = () => {
+      if (!myIdRef.current) return
+      const me = playersRef.current.get(myIdRef.current)
+      if (!me) return
+      if (seatedSeatIdx >= 0) {
+        seatedSeatIdx = -1
+        me.s = ST.IDLE
+        onSendMoveRef.current(me.x, me.z, me.r, me.s)
+      } else {
+        let near = nearestSeat(me.x, me.z, 6.0)
+        if (near < 0) {
+          near = Math.floor(Math.random() * 60) + 20 // Tự chọn ghế khán đài trung tâm nếu bấm nút Ngồi từ xa trên Mobile
+        }
+        const sp = seatPos(near)
+        seatedSeatIdx = near
+        me.x = sp.x
+        me.z = sp.z
+        me.tx = sp.x
+        me.tz = sp.z
+        me.r = Math.PI
+        me.s = ST.SIT
+        onSendMoveRef.current(me.x, me.z, me.r, me.s)
+      }
+    }
+
+    const triggerDance = () => {
+      if (!myIdRef.current) return
+      const me = playersRef.current.get(myIdRef.current)
+      if (!me) return
+      seatedSeatIdx = -1
+      me.s = ST.DANCE
+      me.fxUntil = performance.now() + 4000
+      onSendMoveRef.current(me.x, me.z, me.r, me.s)
+    }
+
+    actionRef.current = { toggleSit, triggerDance }
+
     const onKeyDown = (e: KeyboardEvent) => {
       if (
         document.activeElement &&
@@ -182,27 +225,10 @@ export default function IslandScene({
       const k = e.key.toLowerCase()
       keys[k] = true
 
-      if (k === "e" && myIdRef.current) {
-        const me = playersRef.current.get(myIdRef.current)
-        if (me) {
-          if (seatedSeatIdx >= 0) {
-            seatedSeatIdx = -1
-            me.s = ST.IDLE
-          } else {
-            const near = nearestSeat(me.x, me.z, 3.0)
-            if (near >= 0) {
-              const sp = seatPos(near)
-              seatedSeatIdx = near
-              me.x = sp.x
-              me.z = sp.z
-              me.tx = sp.x
-              me.tz = sp.z
-              me.r = Math.PI
-              me.s = ST.SIT
-              onSendMoveRef.current(me.x, me.z, me.r, me.s)
-            }
-          }
-        }
+      if (k === "e") {
+        toggleSit()
+      } else if (k === " ") {
+        triggerDance()
       }
     }
 
@@ -224,11 +250,46 @@ export default function IslandScene({
       isDragging = false
     }
 
+    // Xoay góc nhìn Camera bằng cảm ứng (Touch drag trên màn hình 3D cho Mobile)
+    let touchCamId: number | null = null
+    let prevTouchX = 0
+    const onTouchStart = (e: TouchEvent) => {
+      if (touchCamId !== null || e.changedTouches.length === 0) return
+      const t = e.changedTouches[0]
+      touchCamId = t.identifier
+      prevTouchX = t.clientX
+    }
+    const onTouchMove = (e: TouchEvent) => {
+      if (touchCamId === null) return
+      for (let i = 0; i < e.changedTouches.length; i++) {
+        const t = e.changedTouches[i]
+        if (t.identifier === touchCamId) {
+          const dx = t.clientX - prevTouchX
+          prevTouchX = t.clientX
+          camYaw -= dx * 0.007
+          break
+        }
+      }
+    }
+    const onTouchEnd = (e: TouchEvent) => {
+      if (touchCamId === null) return
+      for (let i = 0; i < e.changedTouches.length; i++) {
+        if (e.changedTouches[i].identifier === touchCamId) {
+          touchCamId = null
+          break
+        }
+      }
+    }
+
     window.addEventListener("keydown", onKeyDown)
     window.addEventListener("keyup", onKeyUp)
     renderer.domElement.addEventListener("mousedown", onPointerDown)
     window.addEventListener("mousemove", onPointerMove)
     window.addEventListener("mouseup", onPointerUp)
+    renderer.domElement.addEventListener("touchstart", onTouchStart, { passive: true })
+    renderer.domElement.addEventListener("touchmove", onTouchMove, { passive: true })
+    renderer.domElement.addEventListener("touchend", onTouchEnd, { passive: true })
+    renderer.domElement.addEventListener("touchcancel", onTouchEnd, { passive: true })
 
     const onResize = () => {
       if (!container) return
@@ -285,17 +346,18 @@ export default function IslandScene({
       const curMyId = myIdRef.current
       const me = curMyId ? playersRef.current.get(curMyId) : undefined
       if (me) {
-        let forward = 0
-        let strafe = 0
+        let forward = joyRef.current.forward
+        let strafe = joyRef.current.strafe
         if (keys["w"] || keys["arrowup"]) forward += 1
         if (keys["s"] || keys["arrowdown"]) forward -= 1
         if (keys["a"] || keys["arrowleft"]) strafe -= 1
         if (keys["d"] || keys["arrowright"]) strafe += 1
 
-        if (forward !== 0 || strafe !== 0) {
+        if (Math.abs(forward) > 0.05 || Math.abs(strafe) > 0.05) {
           seatedSeatIdx = -1
+          const mag = Math.min(1, Math.hypot(forward, strafe))
           const moveAngle = camYaw + Math.atan2(strafe, forward)
-          const speed = 11.5
+          const speed = 11.5 * mag
           me.x += Math.sin(moveAngle) * speed * dt
           me.z -= Math.cos(moveAngle) * speed * dt
           const dist = Math.hypot(me.x, me.z)
@@ -502,6 +564,10 @@ export default function IslandScene({
       renderer.domElement.removeEventListener("mousedown", onPointerDown)
       window.removeEventListener("mousemove", onPointerMove)
       window.removeEventListener("mouseup", onPointerUp)
+      renderer.domElement.removeEventListener("touchstart", onTouchStart)
+      renderer.domElement.removeEventListener("touchmove", onTouchMove)
+      renderer.domElement.removeEventListener("touchend", onTouchEnd)
+      renderer.domElement.removeEventListener("touchcancel", onTouchEnd)
       window.removeEventListener("resize", onResize)
       screenSet.dispose()
       renderer.dispose()
@@ -511,10 +577,105 @@ export default function IslandScene({
     }
   }, [playersRef])
 
+  // Xử lý cần điều khiển ảo (Virtual Joystick) cho Mobile & Tablet
+  const handleJoyMove = (clientX: number, clientY: number, rect: DOMRect) => {
+    const cx = rect.left + rect.width / 2
+    const cy = rect.top + rect.height / 2
+    const maxR = rect.width / 2 - 14
+    let dx = clientX - cx
+    let dy = clientY - cy
+    const dist = Math.hypot(dx, dy)
+    if (dist > maxR) {
+      dx = (dx / dist) * maxR
+      dy = (dy / dist) * maxR
+    }
+    joyRef.current = {
+      strafe: dx / maxR,
+      forward: -dy / maxR,
+    }
+    if (joyKnobRef.current) {
+      joyKnobRef.current.style.transform = `translate(${dx.toFixed(1)}px, ${dy.toFixed(1)}px)`
+    }
+  }
+
+  const resetJoy = () => {
+    joyRef.current = { forward: 0, strafe: 0 }
+    if (joyKnobRef.current) {
+      joyKnobRef.current.style.transform = "translate(0px, 0px)"
+    }
+  }
+
   return (
-    <div className="relative w-full h-full select-none overflow-hidden">
+    <div className="relative w-full h-full select-none overflow-hidden touch-none">
       <div ref={mountRef} className="w-full h-full cursor-grab active:cursor-grabbing" />
       <div ref={overlayRef} className="absolute inset-0 pointer-events-none overflow-hidden" />
+
+      {/* Bộ điều khiển cảm ứng Mobile/Tablet: Cần Joystick trái & Nút Ngồi/Nhảy phải */}
+      {myId && (
+        <>
+          <div
+            className="absolute bottom-24 md:bottom-16 left-4 z-30 w-28 h-28 rounded-full bg-slate-900/65 border-2 border-cyan-400/50 backdrop-blur-md flex items-center justify-center shadow-2xl touch-none"
+            onTouchStart={(e) => {
+              e.stopPropagation()
+              const t = e.touches[0]
+              if (t) handleJoyMove(t.clientX, t.clientY, e.currentTarget.getBoundingClientRect())
+            }}
+            onTouchMove={(e) => {
+              e.stopPropagation()
+              const t = e.touches[0]
+              if (t) handleJoyMove(t.clientX, t.clientY, e.currentTarget.getBoundingClientRect())
+            }}
+            onTouchEnd={(e) => {
+              e.stopPropagation()
+              resetJoy()
+            }}
+            onTouchCancel={(e) => {
+              e.stopPropagation()
+              resetJoy()
+            }}
+            onMouseDown={(e) => {
+              e.stopPropagation()
+              const rect = e.currentTarget.getBoundingClientRect()
+              handleJoyMove(e.clientX, e.clientY, rect)
+              const onMm = (ev: MouseEvent) => handleJoyMove(ev.clientX, ev.clientY, rect)
+              const onMu = () => {
+                resetJoy()
+                window.removeEventListener("mousemove", onMm)
+                window.removeEventListener("mouseup", onMu)
+              }
+              window.addEventListener("mousemove", onMm)
+              window.addEventListener("mouseup", onMu)
+            }}
+          >
+            <div className="text-[9px] font-bold text-cyan-300/40 uppercase pointer-events-none select-none">
+              DI CHUYỂN
+            </div>
+            <div
+              ref={joyKnobRef}
+              className="absolute w-11 h-11 rounded-full bg-gradient-to-br from-cyan-400 to-blue-600 border-2 border-white/80 shadow-lg pointer-events-none"
+            />
+          </div>
+
+          <div className="absolute bottom-24 right-4 z-30 flex flex-col gap-2.5 md:hidden">
+            <button
+              type="button"
+              onClick={() => actionRef.current.toggleSit()}
+              className="w-14 h-14 rounded-full bg-amber-500/90 active:bg-amber-400 text-slate-950 font-black text-[11px] border-2 border-amber-200 shadow-xl flex flex-col items-center justify-center leading-tight"
+            >
+              <span>🪑</span>
+              <span>NGỒI</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => actionRef.current.triggerDance()}
+              className="w-14 h-14 rounded-full bg-emerald-500/90 active:bg-emerald-400 text-slate-950 font-black text-[11px] border-2 border-emerald-200 shadow-xl flex flex-col items-center justify-center leading-tight"
+            >
+              <span>🕺</span>
+              <span>NHẢY</span>
+            </button>
+          </div>
+        </>
+      )}
     </div>
   )
 }

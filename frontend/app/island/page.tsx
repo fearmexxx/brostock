@@ -16,6 +16,12 @@ import {
   Eye,
 } from "lucide-react"
 import { COLORS, HATS, OXY_BOX, QUICK_CHATS, SEAT_COLS, SEAT_ROWS, ST, seatPos } from "@/components/island/world"
+import {
+  GlobalIslandRelay,
+  SHARED_BOT_COMMENTS,
+  SHARED_BOT_NAMES,
+  populateDeterministicBots,
+} from "@/components/island/multiplayerRelay"
 import type { CameraMode, PlayerEntity } from "@/components/island/IslandScene"
 import type { IslandScreensData } from "@/components/island/ScreenRenderers"
 
@@ -32,6 +38,8 @@ export default function IslandPage() {
   const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"
   const playersRef = useRef<Map<string, PlayerEntity>>(new Map())
   const wsRef = useRef<WebSocket | null>(null)
+  const relayRef = useRef<GlobalIslandRelay | null>(null)
+  const myIdRef = useRef<string | null>(null)
 
   const [myId, setMyId] = useState<string | null>(null)
   const [joined, setJoined] = useState(false)
@@ -81,6 +89,22 @@ export default function IslandPage() {
     setInOxyBooth((prev) => (prev === inOxy ? prev : inOxy))
     setSeatedIdx((prev) => (prev === seat ? prev : seat))
   }, [])
+
+  const refreshCounts = useCallback(() => {
+    const all = Array.from(playersRef.current.values())
+    const webCount = all.filter((x) => x.src === "web").length
+    updateStatsIfChanged({
+      n: all.length,
+      w: webCount,
+      tt: all.length - webCount,
+      max: 350,
+      live: { u: null, s: "live-multiplayer" },
+    })
+  }, [updateStatsIfChanged])
+
+  useEffect(() => {
+    myIdRef.current = myId
+  }, [myId])
 
   // Kết nối WebSocket tới /ws/island
   useEffect(() => {
@@ -190,29 +214,24 @@ export default function IslandPage() {
 
     connect()
 
-    // Fallback Crowd & Bot Engine trên Vercel (khi chạy Serverless không có WebSocket daemon)
-    const botNames = [
-      "Hùng Đu Đỉnh", "Lan Bắt Đáy", "Tuấn Margin", "Mai Tích Sản", "Cá Mập Nhỏ",
-      "Chứng Sĩ F0", "Bảo VN30", "Ngọc Lướt Sóng", "Long HPG", "Vy Về Bờ",
-      "Khánh SSI", "Minh VCB", "Thảo FPT", "Đức TCB", "Hoàng MBB",
-    ]
-    const botComments = [
-      "oxy gấp ad ơi 🏥", "HPG giữ được không ad?", "ngồi xem bảng điện",
-      "tím lịm luôn 💜", "đu đỉnh rồi cứu", "VNINDEX lên 1800 không",
-      "lãi rồi nhảy thôi 🕺", "full margin toang rồi", "FPT tích sản ngon",
-    ]
+    // 1. Khởi tạo đám đông 45 Chứng Sĩ tất định (đồng nhất 100% vị trí ghế/Oxy trên cả PC & Mobile)
+    const fallbackTimer = setTimeout(() => {
+      if (playersRef.current.size === 0) {
+        populateDeterministicBots(playersRef.current, 45)
+        refreshCounts()
+      }
+    }, 600)
 
     const spawnClientBots = (count: number, forceMode?: "oxy" | "comment" | "like" | "gift") => {
       const now = performance.now()
       for (let i = 0; i < count; i++) {
         if (playersRef.current.size >= 350 && !forceMode) break
-        const baseName = botNames[Math.floor(Math.random() * botNames.length)]
+        const baseName = SHARED_BOT_NAMES[Math.floor(Math.random() * SHARED_BOT_NAMES.length)]
+        const botKeys = Array.from(playersRef.current.keys()).filter((k) => k.startsWith("bot_"))
         const id =
-          forceMode && playersRef.current.size > 10
-            ? Array.from(playersRef.current.keys()).filter((k) => k.startsWith("bot_"))[
-                Math.floor(Math.random() * Math.max(1, playersRef.current.size - 1))
-              ] || `bot_${Math.floor(Math.random() * 900 + 100)}`
-            : `bot_${playersRef.current.size + 1}_${Math.floor(Math.random() * 99)}`
+          forceMode && botKeys.length > 0
+            ? botKeys[Math.floor(Math.random() * botKeys.length)]
+            : `bot_extra_${playersRef.current.size + 1}_${Math.floor(Math.random() * 99)}`
 
         let p = playersRef.current.get(id)
         if (!p) {
@@ -262,7 +281,7 @@ export default function IslandPage() {
           p.chatUntil = now + 5500
           triggerBanner(`🏥 CẤP CỨU ĐU ĐỈNH: ${p.n} đang chạy vào Trạm Thở Oxy!`)
         } else if (forceMode === "comment") {
-          p.chat = botComments[Math.floor(Math.random() * botComments.length)]
+          p.chat = SHARED_BOT_COMMENTS[Math.floor(Math.random() * SHARED_BOT_COMMENTS.length)]
           p.chatUntil = now + 5500
         } else if (forceMode === "like") {
           p.chat = `❤️ x${Math.floor(Math.random() * 15 + 1)}`
@@ -277,24 +296,136 @@ export default function IslandPage() {
           triggerBanner(`🦈 VIP TIKTOK: ${p.n} vừa tặng Cá Mập Vàng (1000💎) tại Sân Vận Động!`)
         }
       }
-
-      const all = Array.from(playersRef.current.values())
-      const webCount = all.filter((x) => x.src === "web").length
-      updateStatsIfChanged({
-        n: all.length,
-        w: webCount,
-        tt: all.length - webCount,
-        max: 350,
-        live: { u: null, s: "live-sim" },
-      })
+      refreshCounts()
     }
 
-    const fallbackTimer = setTimeout(() => {
-      if (playersRef.current.size === 0) {
-        spawnClientBots(46)
-        spawnClientBots(4, "comment")
-      }
-    }, 1200)
+    // 2. Kết nối Global Multiplayer Relay (MQTT-over-WSS) để đồng bộ vị trí thực giữa PC & Mobile trên Vercel (<80ms)
+    const relay = new GlobalIslandRelay({
+      getLocalPlayer: () => {
+        const id = myIdRef.current
+        return id ? playersRef.current.get(id) || null : null
+      },
+      onRemoteMessage: (msg) => {
+        const now = performance.now()
+        if (msg.k === "p" && msg.p?.id) {
+          const rp = msg.p
+          if (rp.id === myIdRef.current) return
+          const ex = playersRef.current.get(rp.id)
+          if (ex) {
+            ex.n = rp.n || ex.n
+            ex.c = rp.c || ex.c
+            ex.h = rp.h ?? ex.h
+            ex.v = rp.v ?? ex.v
+            ex.tx = rp.x
+            ex.tz = rp.z
+            ex.r = rp.r
+            ex.s = rp.s
+          } else {
+            playersRef.current.set(rp.id, {
+              id: rp.id,
+              n: rp.n || "Chứng Sĩ",
+              src: "web",
+              c: rp.c || "#3b82f6",
+              h: rp.h ?? 0,
+              v: rp.v ?? 1,
+              x: rp.x,
+              z: rp.z,
+              tx: rp.x,
+              tz: rp.z,
+              r: rp.r || 0,
+              s: rp.s || 0,
+            })
+            refreshCounts()
+          }
+        } else if (msg.k === "chat" && msg.id && msg.m) {
+          const p = playersRef.current.get(msg.id)
+          if (p) {
+            p.chat = String(msg.m)
+            p.chatUntil = now + 5500
+          }
+        } else if (msg.k === "fx" && msg.id) {
+          const p = playersRef.current.get(msg.id)
+          if (p) {
+            p.chat = `❤️ x${msg.n || 1}`
+            p.chatUntil = now + 3000
+            p.fxUntil = now + 2500
+          }
+        } else if (msg.k === "sim" && msg.kind) {
+          if (msg.kind === "crowd") spawnClientBots(msg.n || 1)
+          else spawnClientBots(msg.n || 1, msg.kind)
+        }
+      },
+    })
+    relayRef.current = relay
+
+    // 3. Đồng bộ dự phòng qua Serverless API /api/island-room trên Vercel mỗi 2 giây
+    const roomSyncInterval = setInterval(async () => {
+      if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) return
+      try {
+        const curId = myIdRef.current
+        const me = curId ? playersRef.current.get(curId) : null
+        const res = me
+          ? await fetch("/api/island-room", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                p: {
+                  id: me.id,
+                  n: me.n,
+                  c: me.c,
+                  h: me.h,
+                  v: me.v,
+                  x: Math.round(me.x * 10) / 10,
+                  z: Math.round(me.z * 10) / 10,
+                  r: Math.round(me.r * 100) / 100,
+                  s: me.s,
+                  chat: me.chatUntil && me.chatUntil > performance.now() ? me.chat : undefined,
+                },
+              }),
+            })
+          : await fetch("/api/island-room", { cache: "no-store" })
+
+        if (res.ok) {
+          const d = await res.json()
+          const now = performance.now()
+          let changed = false
+          for (const rp of d.players || []) {
+            if (!rp?.id || rp.id === myIdRef.current) continue
+            const ex = playersRef.current.get(rp.id)
+            if (ex) {
+              ex.n = rp.n || ex.n
+              ex.c = rp.c || ex.c
+              ex.h = rp.h ?? ex.h
+              ex.tx = rp.x
+              ex.tz = rp.z
+              ex.r = rp.r
+              ex.s = rp.s
+              if (rp.chat && rp.chatTs && Date.now() - rp.chatTs < 5500) {
+                ex.chat = rp.chat
+                ex.chatUntil = now + 4500
+              }
+            } else {
+              playersRef.current.set(rp.id, {
+                id: rp.id,
+                n: rp.n || "Chứng Sĩ",
+                src: "web",
+                c: rp.c || "#3b82f6",
+                h: rp.h ?? 0,
+                v: rp.v ?? 1,
+                x: rp.x,
+                z: rp.z,
+                tx: rp.x,
+                tz: rp.z,
+                r: rp.r || 0,
+                s: rp.s || 0,
+              })
+              changed = true
+            }
+          }
+          if (changed) refreshCounts()
+        }
+      } catch {}
+    }, 2000)
 
     const botStepInterval = setInterval(() => {
       if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) return
@@ -305,20 +436,11 @@ export default function IslandPage() {
         const b = bots[Math.floor(Math.random() * bots.length)]
         if (!b) continue
         if (Math.random() < 0.25) {
-          b.chat = botComments[Math.floor(Math.random() * botComments.length)]
+          b.chat = SHARED_BOT_COMMENTS[Math.floor(Math.random() * SHARED_BOT_COMMENTS.length)]
           b.chatUntil = now + 5000
         }
-        if (b.s !== ST.SIT && Math.random() < 0.35) {
-          if (b.s === ST.OXY) {
-            b.tx = OXY_BOX[0] + 1.5 + Math.random() * (OXY_BOX[1] - OXY_BOX[0] - 3)
-            b.tz = OXY_BOX[2] + 1.5 + Math.random() * (OXY_BOX[3] - OXY_BOX[2] - 3)
-          } else {
-            b.tx = (Math.random() - 0.5) * 36
-            b.tz = -32 + Math.random() * 55
-          }
-        }
       }
-    }, 2800)
+    }, 3000)
 
     ;(window as any).__spawnIslandBots = spawnClientBots
 
@@ -326,10 +448,12 @@ export default function IslandPage() {
       disposed = true
       if (reconnectTimer) clearTimeout(reconnectTimer)
       clearTimeout(fallbackTimer)
+      clearInterval(roomSyncInterval)
       clearInterval(botStepInterval)
+      relay.dispose()
       if (ws) ws.close()
     }
-  }, [API_URL, triggerBanner, updateStatsIfChanged])
+  }, [API_URL, triggerBanner, updateStatsIfChanged, refreshCounts])
 
   const handleJoinWorld = (e: React.FormEvent) => {
     e.preventDefault()
@@ -339,49 +463,55 @@ export default function IslandPage() {
         JSON.stringify({ t: "join", n: cleanName, c: color, h: hat })
       )
     } else {
-      // Fallback local mode nếu backend đang khởi động
-      const localId = "local_me"
-      playersRef.current.set(localId, {
-        id: localId,
+      // Tạo ID toàn cầu duy nhất để đồng bộ Multiplayer giữa PC & Mobile trên Vercel
+      const globalId = `w_${Math.random().toString(36).slice(2, 9)}`
+      const spawnX = Number(((Math.random() - 0.5) * 10).toFixed(1))
+      const spawnZ = Number((14 + Math.random() * 5).toFixed(1))
+      const me: PlayerEntity = {
+        id: globalId,
         n: cleanName,
         src: "web",
         c: color,
         h: hat,
         v: 1,
-        x: 0,
-        z: 16,
-        tx: 0,
-        tz: 16,
+        x: spawnX,
+        z: spawnZ,
+        tx: spawnX,
+        tz: spawnZ,
         r: 0,
         s: ST.IDLE,
-      })
-      setMyId(localId)
+      }
+      playersRef.current.set(globalId, me)
+      myIdRef.current = globalId
+      setMyId(globalId)
       setJoined(true)
-      const all = Array.from(playersRef.current.values())
-      const webCount = all.filter((x) => x.src === "web").length
-      updateStatsIfChanged({
-        n: all.length,
-        w: webCount,
-        tt: all.length - webCount,
-        max: 350,
-        live: { u: null, s: "live-sim" },
-      })
+      relayRef.current?.publishPlayerState(me)
+      fetch("/api/island-room", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ p: me }),
+      }).catch(() => {})
+      refreshCounts()
     }
   }
 
   const lastSentMoveRef = useRef<string>("")
   const sendMove = useCallback((x: number, z: number, r: number, s: number) => {
+    const qx = Math.round(x * 10) / 10
+    const qz = Math.round(z * 10) / 10
+    const qr = Math.round(r * 100) / 100
+    const payload = JSON.stringify({ t: "mv", x: qx, z: qz, r: qr, s })
+    if (payload === lastSentMoveRef.current) return
+    lastSentMoveRef.current = payload
+
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-      const payload = JSON.stringify({
-        t: "mv",
-        x: Math.round(x * 10) / 10,
-        z: Math.round(z * 10) / 10,
-        r: Math.round(r * 100) / 100,
-        s,
-      })
-      if (payload !== lastSentMoveRef.current) {
-        lastSentMoveRef.current = payload
-        wsRef.current.send(payload)
+      wsRef.current.send(payload)
+    }
+    const id = myIdRef.current
+    if (id) {
+      const me = playersRef.current.get(id)
+      if (me) {
+        relayRef.current?.publishPlayerState(me)
       }
     }
   }, [])
@@ -397,6 +527,7 @@ export default function IslandPage() {
       if (me) {
         me.chat = msg
         me.chatUntil = performance.now() + 5500
+        relayRef.current?.publish({ k: "chat", id: myId, m: msg })
       }
     }
     setChatInput("")
@@ -456,6 +587,7 @@ export default function IslandPage() {
       if (kind === "crowd") fn(n)
       else fn(n, kind)
     }
+    relayRef.current?.publish({ k: "sim", kind, n })
   }
 
   return (
@@ -722,21 +854,21 @@ export default function IslandPage() {
       )}
 
       {/* Thanh công cụ dưới cùng: Chat, Biểu cảm nhanh, Đi tới Trạm Oxy */}
-      <div className="absolute bottom-3 left-3 right-3 flex flex-col md:flex-row items-center justify-between gap-2 z-20 pointer-events-none">
-        <div className="flex flex-wrap items-center gap-1.5 pointer-events-auto">
+      <div className="absolute bottom-2 left-2 right-2 md:bottom-3 md:left-3 md:right-3 flex flex-col md:flex-row items-center justify-between gap-1.5 md:gap-2 z-20 pointer-events-none">
+        <div className="flex items-center gap-1.5 w-full md:w-auto overflow-x-auto pb-0.5 pointer-events-auto">
           <button
             onClick={goToOxyBooth}
-            className="bg-cyan-600 hover:bg-cyan-500 text-white font-black text-xs px-3 py-2 rounded-xl shadow-lg flex items-center gap-1.5 border border-cyan-300/40"
+            className="shrink-0 bg-cyan-600 hover:bg-cyan-500 text-white font-black text-[11px] md:text-xs px-2.5 py-1.5 md:px-3 md:py-2 rounded-xl shadow-lg flex items-center gap-1 border border-cyan-300/40"
           >
-            <Activity size={14} />
-            <span>🏥 Vào Trạm Thở Oxy</span>
+            <Activity size={13} />
+            <span>🏥 Thở Oxy</span>
           </button>
 
           {QUICK_CHATS.map((q) => (
             <button
               key={q}
               onClick={() => sendChat(q)}
-              className="bg-slate-900/90 hover:bg-slate-800 text-slate-100 border border-slate-700 text-xs font-bold px-2.5 py-1.5 rounded-xl shadow"
+              className="shrink-0 bg-slate-900/90 hover:bg-slate-800 text-slate-100 border border-slate-700 text-[11px] md:text-xs font-bold px-2.5 py-1.5 rounded-xl shadow"
             >
               {q}
             </button>
@@ -755,11 +887,11 @@ export default function IslandPage() {
             value={chatInput}
             onChange={(e) => setChatInput(e.target.value)}
             placeholder="Chat trên đầu nhân vật (Enter)..."
-            className="flex-1 bg-slate-900/95 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-400"
+            className="flex-1 bg-slate-900/95 border border-slate-700 rounded-xl px-3 py-1.5 md:py-2 text-xs text-white focus:outline-none focus:border-amber-400"
           />
           <button
             type="submit"
-            className="bg-amber-400 hover:bg-amber-300 text-slate-950 p-2 rounded-xl font-black"
+            className="bg-amber-400 hover:bg-amber-300 text-slate-950 p-1.5 md:p-2 rounded-xl font-black"
           >
             <Send size={14} />
           </button>
