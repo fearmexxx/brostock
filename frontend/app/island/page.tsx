@@ -113,8 +113,14 @@ export default function IslandPage() {
     let reconnectTimer: ReturnType<typeof setTimeout> | null = null
     let disposed = false
 
+    const isRemoteOnVercel =
+      typeof window !== "undefined" &&
+      window.location.hostname !== "localhost" &&
+      window.location.hostname !== "127.0.0.1" &&
+      API_URL.includes("localhost")
+
     const connect = () => {
-      if (disposed) return
+      if (disposed || isRemoteOnVercel) return
       try {
         ws = new WebSocket(wsUrl)
         wsRef.current = ws
@@ -307,7 +313,17 @@ export default function IslandPage() {
       },
       onRemoteMessage: (msg) => {
         const now = performance.now()
-        if (msg.k === "p" && msg.p?.id) {
+        if (msg.k === "m" && Array.isArray(msg.d)) {
+          const [id, x, z, r, s] = msg.d
+          if (!id || id === myIdRef.current) return
+          const ex = playersRef.current.get(id)
+          if (ex) {
+            ex.tx = x
+            ex.tz = z
+            ex.r = r
+            ex.s = s
+          }
+        } else if (msg.k === "p" && msg.p?.id) {
           const rp = msg.p
           if (rp.id === myIdRef.current) return
           const ex = playersRef.current.get(rp.id)
@@ -358,9 +374,11 @@ export default function IslandPage() {
     })
     relayRef.current = relay
 
-    // 3. Đồng bộ dự phòng qua Serverless API /api/island-room trên Vercel mỗi 2 giây
-    const roomSyncInterval = setInterval(async () => {
+    // 3. Đồng bộ dự phòng tiết kiệm băng thông qua Serverless API /api/island-room (delta ?since=<ts>)
+    let lastRoomVersion = 0
+    const syncRoomNow = async () => {
       if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) return
+      if (typeof document !== "undefined" && document.hidden) return
       try {
         const curId = myIdRef.current
         const me = curId ? playersRef.current.get(curId) : null
@@ -383,13 +401,15 @@ export default function IslandPage() {
                 },
               }),
             })
-          : await fetch("/api/island-room", { cache: "no-store" })
+          : await fetch(`/api/island-room?since=${lastRoomVersion}`, { cache: "no-store" })
 
         if (res.ok) {
           const d = await res.json()
+          if (d.ts) lastRoomVersion = d.ts
+          if (d.u === 0 || !d.players) return
           const now = performance.now()
           let changed = false
-          for (const rp of d.players || []) {
+          for (const rp of d.players) {
             if (!rp?.id || rp.id === myIdRef.current) continue
             const ex = playersRef.current.get(rp.id)
             if (ex) {
@@ -425,7 +445,9 @@ export default function IslandPage() {
           if (changed) refreshCounts()
         }
       } catch {}
-    }, 2000)
+    }
+    syncRoomNow()
+    const roomSyncInterval = setInterval(syncRoomNow, 8000)
 
     const botStepInterval = setInterval(() => {
       if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) return
@@ -509,10 +531,7 @@ export default function IslandPage() {
     }
     const id = myIdRef.current
     if (id) {
-      const me = playersRef.current.get(id)
-      if (me) {
-        relayRef.current?.publishPlayerState(me)
-      }
+      relayRef.current?.publishPlayerMove(id, qx, qz, qr, s)
     }
   }, [])
 

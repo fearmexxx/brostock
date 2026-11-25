@@ -18,17 +18,23 @@ export function GlobalHUD() {
     const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
     const fetchStats = async () => {
-        try {
-            let res = await fetch(`${API_URL}/api/market/hud`)
-            if (!res.ok) {
-                res = await fetch(`${API_URL}/api/market/overview`)
-            }
-            if (res.ok) {
-                const data = await res.json()
-                setStats(data)
-                return
-            }
-        } catch {}
+        if (typeof document !== "undefined" && document.hidden) return
+        const isRemoteWithLocalApi =
+            typeof window !== "undefined" &&
+            window.location.hostname !== "localhost" &&
+            window.location.hostname !== "127.0.0.1" &&
+            API_URL.includes("localhost")
+
+        if (!isRemoteWithLocalApi) {
+            try {
+                const res = await fetch(`${API_URL}/api/market/hud`)
+                if (res.ok) {
+                    const data = await res.json()
+                    setStats(data)
+                    return
+                }
+            } catch {}
+        }
         try {
             const res = await fetch("/api/island-feeds")
             if (res.ok) {

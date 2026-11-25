@@ -77,6 +77,7 @@ export default function DerivativesPage() {
   const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
   const fetchData = useCallback(async () => {
+    if (typeof document !== "undefined" && document.hidden) return
     try {
       const res = await fetch(`${API_URL}/api/derivatives/signal`)
       const json = await res.json()

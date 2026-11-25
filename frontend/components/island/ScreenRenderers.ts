@@ -231,11 +231,12 @@ export class ScreenSet {
   }
 
   startLiveFeeds() {
-    // 1. Gọi ngay Serverless API (/api/island-feeds) trên Vercel để cập nhật 4 bảng điện thực tế
+    // 1. Gọi Serverless API (/api/island-feeds) trên Vercel mỗi 30 giây (tạm dừng khi tab ẩn để tiết kiệm băng thông)
     const fetchFeeds = async () => {
       if (this.disposed) return
+      if (typeof document !== "undefined" && document.hidden) return
       try {
-        const res = await fetch("/api/island-feeds", { cache: "no-store" })
+        const res = await fetch("/api/island-feeds")
         if (res.ok) {
           const json = await res.json()
           if (json && !this.disposed) {
@@ -245,7 +246,7 @@ export class ScreenSet {
       } catch {}
     }
     fetchFeeds()
-    this.pollTimer = setInterval(fetchFeeds, 15000)
+    this.pollTimer = setInterval(fetchFeeds, 30000)
 
     // 2. Kết nối trực tiếp Binance WebSocket (ưu tiên data-stream.binance.vision không bị chặn vùng trên Vercel)
     const connectWs = (url: string, isFallback = false) => {
@@ -269,7 +270,7 @@ export class ScreenSet {
                 gold.c = Number(pct.toFixed(2))
                 if (!gold.h) gold.h = []
                 gold.h.push(gold.p)
-                if (gold.h.length > 50) gold.h.shift()
+                if (gold.h.length > 32) gold.h.shift()
               }
               return
             }
@@ -281,7 +282,7 @@ export class ScreenSet {
               item.c = Number(pct.toFixed(2))
               if (!item.h) item.h = []
               item.h.push(close)
-              if (item.h.length > 50) item.h.shift()
+              if (item.h.length > 32) item.h.shift()
             }
           } catch {}
         }
@@ -304,9 +305,10 @@ export class ScreenSet {
 
     // 3. Nhịp khớp lệnh trực tiếp mỗi 1.2 giây trên các màn hình LED
     // LƯU Ý: Bảng điện VN100 & VN-Index CHỈ nhảy giá trong giờ giao dịch Việt Nam (09:00-11:30 & 13:00-15:00 T2-T6).
-    // Hết giờ giao dịch ở VN thì bảng điện VN100 ngưng nhảy hoàn toàn, giữ nguyên giá đóng cửa!
+    // Hết giờ giao dịch ở VN thì bảng điện VN100 ngưng nhảy hoàn toàn, giữ nguyên giá đóng cửa và tiết kiệm 90% GPU upload!
     this.liveTickTimer = setInterval(() => {
       if (this.disposed) return
+      if (typeof document !== "undefined" && document.hidden) return
       const now = Date.now()
       const vnStatus = getVnMarketStatus()
 
@@ -361,7 +363,13 @@ export class ScreenSet {
           }
         }
       }
-      this.renderAll()
+      this.tickOffset++
+      if (vnStatus.isOpen || this.tickOffset % 10 === 0) {
+        this.drawMainVN100()
+      }
+      this.drawSideScreen(this.cryptoCanvas, this.cryptoTex, "CRYPTO REALTIME (BINANCE LIVE)", "#f59e0b", this.data.crypto?.length ? this.data.crypto : DEFAULT_CRYPTO)
+      this.drawSideScreen(this.macroCanvas, this.macroTex, "VÀNG XAU & DẦU THÔ WTI", "#eab308", this.data.macro?.length ? this.data.macro : DEFAULT_MACRO)
+      this.drawSideScreen(this.usCanvas, this.usTex, "CHỨNG KHOÁN MỸ (WALL STREET)", "#38bdf8", this.data.us?.length ? this.data.us : DEFAULT_US)
     }, 1200)
   }
 

@@ -61,25 +61,16 @@ export default function MarketPage() {
   const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
   const fetchMarketData = useCallback(async () => {
-
-        try {
-
-          const res = await fetch(`${API_URL}/api/market/overview`)
-
+    if (typeof document !== "undefined" && document.hidden) return
+    try {
+      const res = await fetch(`${API_URL}/api/market/overview`)
       const json = await res.json()
-
       setData(json)
-
     } catch (e) {
-
       console.error(e)
-
     } finally {
-
       setLoading(false)
-
     }
-
   }, [API_URL])
 
 

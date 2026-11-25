@@ -221,6 +221,10 @@ export class GlobalIslandRelay {
     } catch {}
   }
 
+  isConnected(): boolean {
+    return Boolean(this.ws && this.ws.readyState === WebSocket.OPEN)
+  }
+
   publish(obj: Record<string, any>) {
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return
     try {
@@ -229,6 +233,7 @@ export class GlobalIslandRelay {
     } catch {}
   }
 
+  // Gửi thông tin đầy đủ của nhân vật khi mới vào phòng hoặc khi có người chơi mới hỏi "hello"
   publishPlayerState(p: PlayerEntity) {
     this.publish({
       k: "p",
@@ -243,6 +248,14 @@ export class GlobalIslandRelay {
         r: Math.round(p.r * 100) / 100,
         s: p.s,
       },
+    })
+  }
+
+  // Gói di chuyển siêu gọn (~48 bytes, giảm 67% băng thông so với gửi cả tên/màu/mũ mỗi bước đi)
+  publishPlayerMove(id: string, x: number, z: number, r: number, s: number) {
+    this.publish({
+      k: "m",
+      d: [id, x, z, r, s],
     })
   }
 

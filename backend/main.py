@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, Depends, Path
+from fastapi import FastAPI, HTTPException, Depends, Path, Query, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from pydantic import BaseModel
@@ -808,8 +808,9 @@ async def get_partner_brokers():
     }
 
 @app.get("/api/market/hud")
-async def get_market_hud():
+async def get_market_hud(response: Response):
     """Endpoint siêu nhẹ (~350 bytes) chuyên dụng cho thanh GlobalHUD ở mọi trang."""
+    response.headers["Cache-Control"] = "public, max-age=30, stale-while-revalidate=60"
     return {
         "indices": market_cache.get("indices", {}),
         "market_stats": market_cache.get("market_stats"),
@@ -817,8 +818,9 @@ async def get_market_hud():
     }
 
 @app.get("/api/market/overview")
-async def get_market_overview():
+async def get_market_overview(response: Response):
     """Chỉ trả các trường cần cho trang Market Overview, loại bỏ alpha/scan nặng để giảm 85% băng thông."""
+    response.headers["Cache-Control"] = "public, max-age=30, stale-while-revalidate=60"
     return {
         "indices": market_cache.get("indices", {}),
         "top10": market_cache.get("top10", {"gainers": [], "losers": [], "volume": []}),
@@ -828,10 +830,21 @@ async def get_market_overview():
     }
 
 @app.get("/api/market/scan")
-async def get_market_scan(): return market_cache.get("scan", {})
+async def get_market_scan(
+    response: Response,
+    symbols: Optional[str] = Query(None, description="Danh sách mã cách nhau bằng dấu phẩy để lọc gọn payload"),
+):
+    response.headers["Cache-Control"] = "public, max-age=60, stale-while-revalidate=120"
+    scan = market_cache.get("scan", {})
+    if symbols:
+        wanted = {s.strip().upper() for s in symbols.split(",") if s.strip()}
+        return {k: v for k, v in scan.items() if k in wanted}
+    return scan
 
 @app.get("/api/market/alpha")
-async def get_market_alpha(): return market_cache.get("alpha", [])
+async def get_market_alpha(response: Response):
+    response.headers["Cache-Control"] = "public, max-age=60, stale-while-revalidate=120"
+    return market_cache.get("alpha", [])
 
 @app.get("/api/market/update")
 async def trigger_market_update():
@@ -840,13 +853,18 @@ async def trigger_market_update():
     return {"message": "Đã kích hoạt cập nhật"}
 
 @app.get("/api/derivatives/signal")
-async def get_derivatives_signal():
+async def get_derivatives_signal(response: Response):
+    response.headers["Cache-Control"] = "public, max-age=30, stale-while-revalidate=60"
     signal = market_cache.get("derivatives_signal", {})
     history = market_cache.get("derivatives_history", [])
     return {"signal": signal, "history": history[-7:]}
 
 @app.get("/api/stock/{symbol}", response_model=StockAnalysisResponse)
-async def analyze_stock(symbol: str = Path(..., pattern="^[A-Za-z0-9]{1,10}$", description="Stock ticker symbol (1-10 alphanumeric chars)")):
+async def analyze_stock(
+    response: Response,
+    symbol: str = Path(..., pattern="^[A-Za-z0-9]{1,10}$", description="Stock ticker symbol (1-10 alphanumeric chars)"),
+):
+    response.headers["Cache-Control"] = "public, max-age=60, stale-while-revalidate=120"
     symbol = symbol.upper()
     now_ts = time.time()
     cached_entry = _stock_analysis_cache.get(symbol)
@@ -859,18 +877,23 @@ async def analyze_stock(symbol: str = Path(..., pattern="^[A-Za-z0-9]{1,10}$", d
         df = preprocess_data(raw)
         resampled = aggregate_data(df)
         resampled['cum_vol'] = resampled['volume'].cumsum()
-        resampled['vwap'] = (resampled['close'] * resampled['volume']).cumsum() / resampled['cum_vol']
+        resampled['vwap'] = ((resampled['close'] * resampled['volume']).cumsum() / resampled['cum_vol']).round(2)
         
         hist_df = hist.sort_index().tail(90).reset_index()
-        hist_df['MA5'] = hist_df['close'].rolling(5).mean()
-        hist_df['MA20'] = hist_df['close'].rolling(20).mean()
+        hist_df['MA5'] = hist_df['close'].rolling(5).mean().round(2)
+        hist_df['MA20'] = hist_df['close'].rolling(20).mean().round(2)
+
+        # Chỉ giữ lại đúng các cột mà biểu đồ Frontend sử dụng để giảm ~65% kích thước JSON
+        intra_reset = resampled.reset_index()
+        intra_cols = [c for c in ('time', 'close', 'vwap', 'net_flow') if c in intra_reset.columns]
+        hist_cols = [c for c in ('time', 'close', 'MA5', 'MA20', 'volume') if c in hist_df.columns]
 
         resp = {
             "symbol": symbol, "current_price": float(df['price'].iloc[-1]),
             "summary": convert_numpy(calculate_summary(df, resampled)),
             "trend_metrics": convert_numpy(calculate_trend_metrics(hist)),
-            "intraday_data": convert_numpy(resampled.reset_index().to_dict('records')),
-            "historical_data": convert_numpy(hist_df.to_dict('records'))
+            "intraday_data": convert_numpy(intra_reset[intra_cols].to_dict('records')),
+            "historical_data": convert_numpy(hist_df[hist_cols].to_dict('records'))
         }
         _stock_analysis_cache[symbol] = (now_ts, resp)
         return resp

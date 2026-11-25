@@ -35,17 +35,32 @@ export default function SignalAlerts() {
                 return
             }
 
-            // 2. Fetch Market Scan
+            // 2. Fetch Market Scan (Chỉ tải đúng các mã trong danh mục + cache sessionStorage 2 phút để giảm 99% băng thông)
             try {
-                const res = await fetch(`${API_URL}/api/market/scan`)
-                if (!res.ok) return
-                const scan: Record<string, ScanItem> = await res.json()
+                const symbols = Array.from(new Set(portfolio.map((p) => p.Symbol.toUpperCase()))).join(",")
+                const cacheKey = `brostock_scan_${symbols}`
+                const cachedRaw = sessionStorage.getItem(cacheKey)
+                let scan: Record<string, ScanItem> | null = null
+                if (cachedRaw) {
+                    try {
+                        const parsed = JSON.parse(cachedRaw)
+                        if (Date.now() - parsed.ts < 120000) {
+                            scan = parsed.data
+                        }
+                    } catch {}
+                }
+                if (!scan) {
+                    const res = await fetch(`${API_URL}/api/market/scan?symbols=${encodeURIComponent(symbols)}`)
+                    if (!res.ok) return
+                    scan = await res.json()
+                    sessionStorage.setItem(cacheKey, JSON.stringify({ ts: Date.now(), data: scan }))
+                }
 
                 // 3. Match
                 const newAlerts = []
                 for (const item of portfolio) {
                     const sym = item.Symbol
-                    const marketData = scan[sym]
+                    const marketData = scan ? scan[sym] : undefined
                     
                     if (marketData) {
                         // SELL WARNING
